@@ -1,6 +1,6 @@
-//! Worker Discord : reflète périodiquement la carte courante vers
-//! Discord (Rich Presence). Best-effort : jamais de panique, l'absence
-//! de Discord ou un refus n'affecte pas le panneau.
+//! Discord worker: periodically mirrors the current card to Discord
+//! (Rich Presence). Best-effort: never panics; a missing or refusing
+//! Discord client never affects the panel.
 
 use crate::config::AppState;
 use crate::discord;
@@ -26,8 +26,8 @@ fn truncated(s: &str, max: usize) -> String {
     }
 }
 
-/// Exécute une opération IPC avec un délai borne : si Discord ne répond
-/// pas (connexion à moitié morte), le cycle n'est pas bloqué pour toujours.
+/// Runs an IPC operation with a bounded delay: if Discord does not answer
+/// (half-dead connection), the cycle is not blocked forever.
 fn bounded<T, F>(dur: Duration, f: F) -> Option<T>
 where
     F: FnOnce() -> T + Send + 'static,
@@ -58,7 +58,7 @@ pub fn start(app: tauri::AppHandle) {
         if !discord_on {
             continue;
         }
-        // Clear quand la présence est masquée ou sans contenu.
+        // Clear when the presence is hidden or has no content.
         let overlay_visible = {
             let c = state.config.lock().unwrap();
             c.overlay.visible

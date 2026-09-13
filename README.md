@@ -1,58 +1,69 @@
 # Custom Rich Presence
 
-Petit utilitaire Windows qui affiche un **panneau de présence flottant** sur le bureau :
-image, titre, sous-titre, texte libre, bouton avec lien, chronomètre, barre de progression,
-lecture multimédia Windows ou vidéo YouTube — entièrement configurable.
+A small Windows utility that displays a **floating presence panel** on your desktop:
+image, title, subtitle, free text, button with link, chronometer, progress bar,
+Windows media playback or a YouTube video — fully configurable. It can also mirror
+the card as a **Discord Rich Presence** status.
 
 ![stack](https://img.shields.io/badge/stack-Tauri_2%20%2B%20TypeScript-blue)
 
-## Fonctionnalités
+## Features
 
-- **Panneau flottant** indépendant : toujours au-dessus (optionnel), déplacement par glisser,
-  redimensionnement, verrouillage (`Ctrl+Alt+P` sur le panneau), opacité, position mémorisée,
-  ancrage dans un coin, multi-écrans.
-- **Éditeur** avec aperçu en temps réel (les modifications apparaissent immédiatement).
-- **Éléments** : image, titre, sous-titre, texte libre, bouton + lien, chronomètre,
-  barre de progression, date/heure — chacun activable/désactivable.
-- **Musique Windows** : récupère via l'API native SMTC les métadonnées de *n'importe quelle*
-  application compatible (titre, artiste, album, pochette, position, durée, état lecture/pause,
-  application source). Aucun média détecté → la carte reste sur son contenu statique, sans erreur.
-- **YouTube** : collez une URL, la miniature et le titre sont récupérés via oEmbed public
-  (sans clé API) ; miniature mise en cache localement pour un affichage hors ligne.
-  L'architecture permet d'ajouter une API dédiée plus tard (`src-tauri/src/youtube.rs`).
-- **Discord Rich Presence** : la carte est reflétée comme statut Discord via l'IPC
-  locale de Discord (pipe nommé, aucun serveur). Titre, sous-titre, chronomètre
-  (timestamps) et image de l'application Discord associée. Nécessite un identifiant
-  d'application Discord (voir ci-dessous) et Discord lancé.
-- **Presets** : Minimal, Media, Gaming, YouTube, Custom — accessibles depuis l'éditeur
-  ou le menu de la zone de notification.
-- **Zone de notification** : clic gauche = afficher/masquer le panneau, clic droit = menu
-  (Afficher, Masquer, Modifier, Presets, Paramètres, Quitter).
-- **Lancement au démarrage de Windows** : option désactivable dans les Paramètres.
-- **Stockage local** : `%APPDATA%\CustomRichPresence\config.json` (écriture atomique).
-  Aucune connexion serveur ; tout fonctionne hors ligne sauf la récupération
-  YouTube/miniatures, qui est optionnelle.
+- **Floating panel**, independent from the editor: optional always-on-top, drag to move,
+  resize handle, position lock (`Ctrl+Alt+P` on the panel), opacity, remembered position,
+  snap to any corner, multi-monitor aware.
+- **Editor** with a live preview (changes appear immediately, rendered by the same
+  component as the overlay).
+- **Elements**: image, title, subtitle, free text, button + link, chronometer,
+  progress bar, date/time — each can be toggled independently.
+- **Windows media**: reads metadata from *any* compatible app through the native
+  SMTC API (title, artist, album, cover art, position, duration, play state,
+  source app). No media detected → the card simply keeps its static content, no error.
+- **YouTube**: paste a URL, the thumbnail and title are fetched through the public
+  oEmbed endpoint (no API key); the thumbnail is cached locally for offline display.
+  The architecture allows adding a dedicated API later (`src-tauri/src/youtube.rs`).
+- **Discord Rich Presence**: the card is mirrored as a Discord status through
+  Discord's local IPC (named pipe, no server). Title, subtitle, chronometer
+  (timestamps) and the associated Discord app image. Requires a Discord
+  application ID (see below) and Discord running.
+- **Presets**: Minimal, Media, Gaming, YouTube, Custom — available from the editor
+  or the tray menu.
+- **System tray**: left click = show/hide the panel, right click = menu
+  (Show, Hide, Edit, Presets, Settings, Quit).
+- **Launch at Windows startup**: toggleable in Settings.
+- **Local storage**: `%APPDATA%\CustomRichPresence\config.json` (atomic writes).
+  No server connection; everything works offline except optional YouTube fetches.
 
 ## Build
 
-Prérequis : [Node.js 18+](https://nodejs.org), [Rust stable](https://rustup.rs) avec la cible
-`x86_64-pc-windows-msvc` (ou `gnu`), et les outils de build Windows.
+Prerequisites: [Node.js 18+](https://nodejs.org), [Rust stable](https://rustup.rs)
+with the `x86_64-pc-windows-msvc` target, and the Windows build tools
+(VS Build Tools with the Windows SDK).
 
 ```powershell
 npm install
-npm run icons      # régénère les icônes à partir de assets/icon.png
+npm test           # TypeScript tests (vitest)
+npm run icons      # regenerate icons from assets/icon.png
 npm run tauri:build
 ```
 
-Sur une machine où le nom d'utilisateur Windows contient des caractères non
-ASCII **et** où la toolchain Rust est la variante GNU (cas de cette machine
-de développement), utilisez plutôt `powershell -File scripts/build.ps1`, qui
-dirige la compilation vers un chemin ASCII. Avec la toolchain MSVC standard,
-`npm run tauri:build` fonctionne tel quel.
+Rust unit tests:
 
-L'installateur NSIS et l'exécutable sont produits dans `src-tauri/target/release/bundle/`.
+```powershell
+cd src-tauri
+cargo test
+```
 
-### Développement
+The NSIS installer and the executable are produced under
+`src-tauri/target/release/bundle/`. With the MSVC toolchain the exe is
+statically linked against WebView2Loader and runs fully standalone.
+
+If the Windows username contains non-ASCII characters **and** only the GNU
+Rust toolchain is available, use `powershell -File scripts/build.ps1`, which
+redirects the build to an ASCII path. With the standard MSVC toolchain,
+`npm run tauri:build` works as-is.
+
+### Development
 
 ```powershell
 npm run tauri:dev
@@ -60,46 +71,46 @@ npm run tauri:dev
 
 ## Discord Rich Presence
 
-1. Créez une application sur [discord.com/developers](https://discord.com/developers/applications)
-   (un clic sur « New Application » suffit — le champ « description » devient la légende
-   du statut).
-2. Copiez l'**Application ID** et collez-le dans Paramètres > Discord Rich Presence.
-3. Optionnel : dans « Rich Presence > Art Assets », téléversez une image nommée
-   `app-icon` (elle apparaît à côté du statut).
-4. Activez la présence Discord, lancez Discord, affichez le panneau.
+1. Create an application on [discord.com/developers](https://discord.com/developers/applications)
+   (a single "New Application" click is enough — the "description" field becomes
+   the caption of the status).
+2. Copy the **Application ID** and paste it in Settings > Discord Rich Presence.
+3. Optional: under "Rich Presence > Art Assets", upload an image named `app-icon`
+   (it is displayed next to the status).
+4. Enable Discord Rich Presence, start Discord, show the panel.
 
-La connexion utilise le protocole IPC officiel de Discord (pipe nommé local) :
-aucune donnée ne transite par Internet autre que ce que Discord affiche déjà.
-Si Discord est fermé, l'application continue de fonctionner et réessaie
-périodiquement, sans erreur bloquante.
+The connection uses Discord's official IPC protocol (local named pipe): nothing
+transits over the Internet beyond what Discord already displays. If Discord is
+closed, the app keeps working and retries periodically, without blocking errors.
 
-## Icône personnalisée
+## Custom icon
 
-Remplacez simplement le fichier `assets/icon.png` par votre icône (carré, 512×512 recommandé),
-puis relancez :
+Simply replace `assets/icon.png` with your icon (square, 512×512 recommended),
+then run:
 
 ```powershell
-npm run icons      # décline l'icône pour la fenêtre, la barre des tâches, le tray et l'installateur
+npm run icons      # derives icons for the window, taskbar, tray and installer
 npm run tauri:build
 ```
 
-Les emplacements dérivés sont régénérés dans `src-tauri/icons/` (`.ico`, PNG multiples) :
-icône d'exécutable, de fenêtre, de tray et de raccourci.
+The derived files are regenerated in `src-tauri/icons/` (`.ico`, multiple PNGs):
+executable, window, tray and shortcut icons.
 
-## Intégrations
+## Integrations
 
-Le système est modulaire :
+The system is modular:
 
-- `src-tauri/src/media.rs` — lecture SMTC (toute application Windows compatible).
-- `src-tauri/src/youtube.rs` — mode YouTube (oEmbed aujourd'hui, API dédiée demain).
+- `src-tauri/src/media.rs` — SMTC reader (any compatible Windows app).
+- `src-tauri/src/youtube.rs` — YouTube mode (oEmbed today, dedicated API tomorrow).
 - `src-tauri/src/presets.rs` — presets.
+- `src-tauri/src/discord.rs` + `discord_worker.rs` — Discord IPC client and push loop.
 
-Ajouter une intégration = un module + une commande Tauri + un panneau dans l'éditeur
+Adding an integration = one module + one Tauri command + one panel in the editor
 (`src/editor.ts`).
 
 ## Notes
 
-- Interface sans emoji : pictogrammes SVG monochromes inline (`src/icons.ts`).
-- Le panneau consomme très peu de ressources : aucun minuteur actif tant qu'aucun
-  élément dynamique (chronomètre, horloge, progression média) n'est affiché ;
-  l'interrogation média ne tourne que si le mode « suivre la lecture » est activé.
+- Emoji-free interface: inline monochrome SVG pictograms (`src/icons.ts`).
+- The panel consumes very few resources: no active timer as long as no dynamic
+  element (chronometer, clock, media progress) is displayed; media polling only
+  runs while "follow playback" is enabled.

@@ -27,7 +27,7 @@ html, body {
 button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
 input, select, textarea { font: inherit; color: var(--text); }
 
-/* ===== Carte (aperçu + overlay) ===== */
+/* ===== Card (preview + overlay) ===== */
 
 @keyframes crp-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes crp-slide-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
@@ -134,7 +134,7 @@ input, select, textarea { font: inherit; color: var(--text); }
 .card-button:hover { background: rgba(255, 255, 255, 0.13); }
 .card-button:active { background: rgba(255, 255, 255, 0.05); }
 
-/* ===== Fenêtre principale (éditeur) ===== */
+/* ===== Main window (editor) ===== */
 
 .titlebar {
   height: 40px;
@@ -169,21 +169,48 @@ input, select, textarea { font: inherit; color: var(--text); }
   flex-direction: column;
   gap: 2px;
 }
+.nav-header {
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 0 12px 5px;
+  user-select: none;
+}
+.nav-header:not(:first-child) { margin-top: 14px; }
 .nav-item {
   display: flex;
   align-items: center;
   gap: 11px;
-  padding: 9px 12px;
+  padding: 8px 12px;
   border-radius: 8px;
   color: var(--text-dim);
   font-size: 13px;
   width: 100%;
   text-align: left;
+  position: relative;
 }
 .nav-item svg { flex-shrink: 0; opacity: 0.85; }
 .nav-item:hover { background: rgba(255, 255, 255, 0.045); color: var(--text); }
 .nav-item.active { background: var(--panel-2); color: var(--text); }
+.nav-item.active::before {
+  content: "";
+  position: absolute;
+  left: -12px;
+  top: 8px; bottom: 8px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+}
 .sidebar .nav-gap { flex: 1; }
+.sidebar .nav-version {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  letter-spacing: 0.05em;
+  text-align: center;
+  padding: 6px 0 2px;
+  user-select: none;
+}
 
 .content {
   flex: 1;

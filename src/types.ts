@@ -18,7 +18,7 @@ export interface CardConfig {
   progressMax: number;
   datetimeEnabled: boolean;
   mediaEnabled: boolean;
-  /** Epoch ms : masquer automatiquement après cette date (0 = permanent) */
+  /** Epoch ms: auto-hide after this date (0 = permanent) */
   displayUntil: number;
 }
 
@@ -82,13 +82,13 @@ export function defaultConfig(): Config {
       imageEnabled: false,
       imageData: "",
       titleEnabled: true,
-      title: "Ma présence",
+      title: "My presence",
       subtitleEnabled: true,
-      subtitle: "Sous-titre",
+      subtitle: "Subtitle",
       bodyEnabled: false,
       body: "",
       buttonEnabled: false,
-      buttonText: "Ouvrir",
+      buttonText: "Open",
       buttonUrl: "",
       chronoEnabled: false,
       chronoStartedAt: 0,

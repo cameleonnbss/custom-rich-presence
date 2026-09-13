@@ -4,8 +4,8 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 /**
- * Runtime de l'overlay : rendu de la carte, déplacement par glisser,
- * poignée de redimensionnement, verrouillage, persistance gérée côté Rust.
+ * Overlay runtime: card rendering, drag-to-move, resize handle,
+ * locking; persistence is handled on the Rust side.
  */
 
 let cfg: Config | null = null;
@@ -27,14 +27,14 @@ document.body.appendChild(resizeHandle);
 
 function draw(): void {
   if (!cfg) return;
-  // Affichage temporaire : masquer automatiquement une fois la durée écoulée.
+  // Temporary display: auto-hide once the duration has elapsed.
   if (cfg.card.displayUntil > 0 && Date.now() > cfg.card.displayUntil) {
     cfg.card.displayUntil = 0;
     void import("./bridge").then(({ hideOverlay }) => hideOverlay());
     return;
   }
   // Animation d'apparition : uniquement quand la configuration change,
-  // pas à chaque tic des éléments dynamiques.
+  // not on every tick of the dynamic elements.
   const sig = JSON.stringify(cfg);
   if (sig !== lastSig) {
     lastSig = sig;
@@ -63,7 +63,7 @@ async function pollMedia(): Promise<void> {
     const { getMediaStatus } = await import("./bridge");
     currentMedia = await getMediaStatus();
   } catch {
-    currentMedia = null; // pas de média disponible : la carte reste sur son contenu statique
+    currentMedia = null; // no media available: the card keeps its static content
   }
 }
 
@@ -83,7 +83,7 @@ listen<Config>("card-updated", (e) => {
   setMediaPolling(!!cfg.card.mediaEnabled);
   draw();
 }).then(() => {
-  // Premier rendu dès que le listener est en place.
+  // First render as soon as the listener is in place.
   void (async () => {
     const { getConfig } = await import("./bridge");
     cfg = await getConfig();
@@ -93,7 +93,7 @@ listen<Config>("card-updated", (e) => {
   })();
 });
 
-// Déplacement par glisser (désactivé quand verrouillé)
+// Drag-to-move (disabled while locked)
 host.addEventListener("pointerdown", (e) => {
   if (cfg?.overlay.locked || e.button !== 0) return;
   const target = e.target as HTMLElement;
@@ -101,7 +101,7 @@ host.addEventListener("pointerdown", (e) => {
   void getCurrentWindow().startDragging();
 });
 
-// Redimensionnement par la poignée (coin Sud-Est)
+// Resize via the handle (south-east corner)
 resizeHandle.addEventListener("pointerdown", (e) => {
   if (cfg?.overlay.locked) return;
   e.preventDefault();
@@ -109,7 +109,7 @@ resizeHandle.addEventListener("pointerdown", (e) => {
   void getCurrentWindow().startResizeDragging("SouthEast");
 });
 
-// Ctrl+Alt+P : verrouiller/déverrouiller rapidement
+// Ctrl+Alt+P: quick lock/unlock
 window.addEventListener("keydown", (e) => {
   if (e.ctrlKey && e.altKey && (e.key === "p" || e.key === "P")) {
     cfg!.overlay.locked = !cfg!.overlay.locked;

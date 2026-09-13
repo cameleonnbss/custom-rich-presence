@@ -1,6 +1,6 @@
-//! Intégration Windows : System Media Transport Controls (SMTC).
-//! Récupère les métadonnées de n'importe quelle application compatible
-//! (Spotify, navigateurs, lecteurs système, jeux, etc.).
+//! Windows integration: System Media Transport Controls (SMTC).
+//! Retrieves metadata from any compatible app (Spotify, browsers,
+//! system players, games, etc.).
 
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine as _;
@@ -56,7 +56,7 @@ fn datetime_to_unix_ms(universal_time: i64) -> u64 {
     if ms < 0 { 0 } else { ms as u64 }
 }
 
-/// Point d'entrée appelé depuis un thread bloquant : ne jamais paniquer,
+/// Entry point called from a blocking thread: never panic,
 /// renvoyer simplement un statut indisponible en cas d'erreur.
 pub fn read_smtc_blocking() -> MediaStatus {
     read_smtc_inner().unwrap_or_else(|_| MediaStatus::unavailable())
@@ -70,7 +70,7 @@ fn read_smtc_inner() -> windows::core::Result<MediaStatus> {
         return Ok(MediaStatus::unavailable());
     }
 
-    // Préférer une session en lecture, sinon la première.
+    // Prefer a readable session, else the first one.
     let mut chosen: Option<GlobalSystemMediaTransportControlsSession> = None;
     for i in 0..count {
         let s = sessions.GetAt(i)?;
@@ -91,7 +91,7 @@ fn read_smtc_inner() -> windows::core::Result<MediaStatus> {
     let playing = session.GetPlaybackInfo()?.PlaybackStatus()?
         == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing;
 
-    // Position + durée, extrapolée si lecture en cours.
+    // Position + duration, extrapolated while playing.
     let timeline = session.GetTimelineProperties()?;
     let pos_ms = (timeline.Position()?.Duration / 10_000).max(0) as u64;
     let dur_ms = (timeline.EndTime()?.Duration / 10_000).max(0) as u64;
@@ -105,7 +105,7 @@ fn read_smtc_inner() -> windows::core::Result<MediaStatus> {
         position_ms = position_ms.min(dur_ms);
     }
 
-    // Métadonnées.
+    // Metadata.
     let props = session.TryGetMediaPropertiesAsync()?.get()?;
     let title = props.Title().map(|h| h.to_string_lossy()).unwrap_or_default();
     let artist = props.Artist().map(|h| h.to_string_lossy()).unwrap_or_default();

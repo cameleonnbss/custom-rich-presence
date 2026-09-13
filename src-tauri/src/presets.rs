@@ -1,4 +1,4 @@
-//! Presets d'apparence et de contenu.
+//! Appearance and content presets.
 
 use crate::{config::AppState, overlay};
 use tauri::{AppHandle, Emitter, Manager};
@@ -10,8 +10,8 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
-/// Applique un preset à la configuration, persiste, réaffiche l'overlay
-/// et prévient les deux fenêtres.
+/// Applies a preset to the configuration, persists it, re-shows the overlay
+/// and notifies both windows.
 pub fn apply(app: &AppHandle, name: &str) {
     let state = app.state::<AppState>();
     {
@@ -26,7 +26,7 @@ pub fn apply(app: &AppHandle, name: &str) {
                 c.appearance.spacing = 14.0;
                 c.card.image_enabled = false;
                 c.card.title_enabled = true;
-                c.card.title = "En séance".into();
+                c.card.title = "In session".into();
                 c.card.subtitle_enabled = false;
                 c.card.body_enabled = false;
                 c.card.button_enabled = false;
@@ -45,7 +45,7 @@ pub fn apply(app: &AppHandle, name: &str) {
                 c.card.subtitle_enabled = true;
                 c.card.body_enabled = true;
                 c.card.button_enabled = true;
-                c.card.button_text = "Ouvrir".into();
+                c.card.button_text = "Open".into();
                 c.card.button_url = String::new();
                 c.card.chrono_enabled = false;
                 c.card.progress_enabled = true;
@@ -63,10 +63,10 @@ pub fn apply(app: &AppHandle, name: &str) {
                     c.card.title = "Minecraft".into();
                 }
                 c.card.subtitle_enabled = true;
-                c.card.subtitle = "En train de jouer".into();
+                c.card.subtitle = "Now playing".into();
                 c.card.body_enabled = false;
                 c.card.button_enabled = true;
-                c.card.button_text = "Ouvrir".into();
+                c.card.button_text = "Open".into();
                 c.card.button_url = String::new();
                 c.card.chrono_enabled = true;
                 c.card.chrono_started_at = now_ms();
@@ -85,7 +85,7 @@ pub fn apply(app: &AppHandle, name: &str) {
                 c.card.subtitle = "YouTube".into();
                 c.card.body_enabled = false;
                 c.card.button_enabled = true;
-                c.card.button_text = "Regarder".into();
+                c.card.button_text = "Watch".into();
                 c.card.button_url = String::new();
                 c.card.chrono_enabled = false;
                 c.card.progress_enabled = false;

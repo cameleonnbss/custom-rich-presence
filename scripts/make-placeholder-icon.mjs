@@ -1,5 +1,5 @@
 // Generates assets/icon.png — a deliberately simple placeholder so a real
-// icon can be dropped in later (see README: "Icône personnalisée").
+// icon can be dropped in later (see README: "Custom icon").
 // Pure Node, no dependencies: writes a hand-encoded PNG.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { deflateSync } from "node:zlib";
@@ -75,4 +75,4 @@ const png = Buffer.concat([
 
 mkdirSync("assets", { recursive: true });
 writeFileSync("assets/icon.png", png);
-console.log("assets/icon.png écrit (" + SIZE + "×" + SIZE + ")");
+console.log("assets/icon.png written (" + SIZE + "×" + SIZE + ")");

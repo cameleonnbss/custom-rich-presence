@@ -1,10 +1,10 @@
-//! Client Discord IPC : connexion au pipe nommé de Discord et envoi
-//! de l'activité (Rich Presence). Implémentation directe du protocole
-//! documenté de Discord, sans dépendance lourde.
+//! Discord IPC client: connects to Discord's named pipe and sends
+//! activity (Rich Presence). Direct implementation of the documented
+//! protocol, without heavyweight dependencies.
 //!
 //! Protocole : handshake (`{"v":1,"client_id":…}`), puis trames
 //! op:1 FRAME contenant SET_ACTIVITY avec nonce. Le pipe existe sous
-//! plusieurs numéros (Discord, Discord Canary, Discord PTB).
+//! several numbers (Discord, Discord Canary, Discord PTB).
 
 use serde_json::{json, Value};
 use std::io::{Read, Write};
@@ -24,7 +24,7 @@ fn connect_pipe() -> std::io::Result<std::fs::File> {
     }
     Err(std::io::Error::new(
         std::io::ErrorKind::NotFound,
-        "aucun pipe Discord trouvé (Discord est-il lancé ?)",
+        "no Discord pipe found (is Discord running?)",
     ))
 }
 
@@ -32,7 +32,7 @@ fn connect_pipe() -> std::io::Result<std::fs::File> {
 fn connect_pipe() -> std::io::Result<std::fs::File> {
     Err(std::io::Error::new(
         std::io::ErrorKind::Unsupported,
-        "IPC Discord pris en charge uniquement sous Windows",
+        "Discord IPC supported on Windows only",
     ))
 }
 
@@ -44,10 +44,10 @@ pub fn pipe_available() -> Result<String, String> {
             return Ok(path);
         }
     }
-    Err("aucun pipe Discord trouvé (Discord est-il lancé ?)".into())
+    Err("no Discord pipe found (is Discord running?)".into())
 }
 
-/// Écrit une trame : 4 octets little-endian (op) + JSON.
+/// Writes a frame: 4 little-endian bytes (op) + JSON.
 fn write_frame(stream: &mut std::fs::File, op: u32, payload: &Value) -> std::io::Result<()> {
     let body = serde_json::to_vec(payload)?;
     let mut buf = Vec::with_capacity(8 + body.len());
@@ -83,10 +83,10 @@ fn client_id_from_env() -> Option<String> {
     std::env::var("CRP_DISCORD_CLIENT_ID").ok().filter(|s| !s.is_empty())
 }
 
-/// Envoie l'activité à Discord. `client_id` : identifiant d'application
-/// Discord (l'app fournit son identifiant par défaut si None/vide).
+/// Sends the activity to Discord. `client_id`: Discord application ID
+/// (the app provides its own ID when None/empty).
 ///
-/// Retourne `Ok(descr)` en cas de succès (descr = message lisible),
+/// Returns `Ok(descr)` on success (descr = readable message),
 /// `Err(message)` sinon — jamais de panique, l'envoi est best-effort.
 pub fn set_activity(
     client_id: &str,
@@ -98,16 +98,16 @@ pub fn set_activity(
     end_ms: Option<u64>,
 ) -> Result<String, String> {
     let id = if client_id.trim().is_empty() {
-        client_id_from_env().ok_or("aucun client_id Discord configuré".to_string())?
+        client_id_from_env().ok_or("no Discord client_id configured".to_string())?
     } else {
         client_id.trim().to_string()
-    };    let mut stream = connect_pipe().map_err(|e| format!("connexion : {e}"))?;
+    };    let mut stream = connect_pipe().map_err(|e| format!("connect: {e}"))?;
 
     write_frame(&mut stream, 0, &json!({ "v": 1, "client_id": id }))
-        .map_err(|e| format!("handshake : {e}"))?;
-    let (op, payload) = read_frame(&mut stream).map_err(|e| format!("lecture handshake : {e}"))?;
+        .map_err(|e| format!("handshake: {e}"))?;
+    let (op, payload) = read_frame(&mut stream).map_err(|e| format!("handshake read: {e}"))?;
     if op == 1 && payload.get("evt").and_then(Value::as_str) == Some("Error") {
-        return Err(format!("handshake refusé : {payload}"));
+        return Err(format!("handshake rejected: {payload}"));
     }
 
     let mut activity = json!({});
@@ -143,37 +143,37 @@ pub fn set_activity(
         "args": { "pid": std::process::id(), "activity": activity },
         "nonce": nonce()
     });
-    write_frame(&mut stream, 1, &frame).map_err(|e| format!("envoi : {e}"))?;
-    let (_, resp) = read_frame(&mut stream).map_err(|e| format!("lecture réponse : {e}"))?;
+    write_frame(&mut stream, 1, &frame).map_err(|e| format!("send: {e}"))?;
+    let (_, resp) = read_frame(&mut stream).map_err(|e| format!("read response: {e}"))?;
     if resp.get("evt").and_then(Value::as_str) == Some("Error") {
         return Err(format!(
-            "Discord a refusé l'activité : {}",
-            resp["data"]["message"].as_str().unwrap_or("raison inconnue")
+            "Discord rejected the activity: {}",
+            resp["data"]["message"].as_str().unwrap_or("unknown reason")
         ));
     }
-    Ok("activité mise à jour".to_string())
+    Ok("activity updated".to_string())
 }
 
-/// Efface l'activité (SET_ACTIVITY sans activity).
+/// Clears the activity (SET_ACTIVITY without activity).
 pub fn clear_activity(client_id: &str) -> Result<String, String> {
     let id = if client_id.trim().is_empty() {
-        client_id_from_env().ok_or("aucun client_id Discord configuré".to_string())?
+        client_id_from_env().ok_or("no Discord client_id configured".to_string())?
     } else {
         client_id.trim().to_string()
     };
-    let mut stream = connect_pipe().map_err(|e| format!("connexion : {e}"))?;
+    let mut stream = connect_pipe().map_err(|e| format!("connect: {e}"))?;
     write_frame(&mut stream, 0, &json!({ "v": 1, "client_id": id }))
-        .map_err(|e| format!("handshake : {e}"))?;
+        .map_err(|e| format!("handshake: {e}"))?;
     let _ = read_frame(&mut stream);
     let frame = json!({
         "cmd": "SET_ACTIVITY",
         "args": { "pid": std::process::id(), "activity": null },
         "nonce": nonce()
     });
-    write_frame(&mut stream, 1, &frame).map_err(|e| format!("envoi : {e}"))?;
-    let (_, resp) = read_frame(&mut stream).map_err(|e| format!("lecture réponse : {e}"))?;
+    write_frame(&mut stream, 1, &frame).map_err(|e| format!("send: {e}"))?;
+    let (_, resp) = read_frame(&mut stream).map_err(|e| format!("read response: {e}"))?;
     if resp.get("evt").and_then(Value::as_str) == Some("Error") {
-        return Err("Discord a refusé l'effacement".into());
+        return Err("Discord rejected the clear".into());
     }
-    Ok("activité effacée".to_string())
+    Ok("activity cleared".to_string())
 }

@@ -1,6 +1,6 @@
-//! Mode YouTube : extraction de l'identifiant de vidéo + oEmbed public.
-//! Aucune clé API requise ; l'architecture permet d'ajouter une API
-//! dédiée plus tard (voir README, section « Intégrations »).
+//! YouTube mode: video ID extraction + public oEmbed lookup.
+//! No API key required; the architecture allows adding a dedicated API
+//! later (see the README "Integrations" section).
 
 use serde::Serialize;
 use std::time::Duration;
@@ -14,8 +14,8 @@ pub struct YoutubeInfo {
     pub thumbnail_url: String,
 }
 
-/// Extrait l'identifiant d'une URL YouTube (watch, youtu.be, shorts,
-/// embed, live) ou accepte un identifiant brut.
+/// Extracts the video ID from a YouTube URL (watch, youtu.be, shorts,
+/// embed, live) or accepts a raw ID.
 pub fn extract_video_id(url: &str) -> Option<String> {
     let u = url.trim();
     if u.is_empty() {
@@ -46,14 +46,14 @@ fn client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
         .timeout(Duration::from_secs(8))
         .build()
-        .map_err(|e| format!("client HTTP : {e}"))
+        .map_err(|e| format!("http client: {e}"))
 }
 
-/// Titre + auteur via oEmbed (gratuit, sans clé). En cas d'échec réseau,
-/// renvoie quand même l'identifiant et la miniature : la carte reste
-/// utilisable hors ligne avec un titre personnalisé.
+/// Title + author via oEmbed (free, keyless). On network failure,
+/// still returns the ID and thumbnail URL: the card remains usable
+/// offline with a custom title.
 pub async fn fetch_info(url: &str) -> Result<YoutubeInfo, String> {
-    let id = extract_video_id(url).ok_or_else(|| "URL YouTube non reconnue".to_string())?;
+    let id = extract_video_id(url).ok_or_else(|| "YouTube URL not recognized".to_string())?;
     let info = YoutubeInfo {
         video_id: id.clone(),
         title: None,
@@ -69,11 +69,11 @@ pub async fn fetch_info(url: &str) -> Result<YoutubeInfo, String> {
         ])
         .send()
         .await
-        .map_err(|e| format!("réseau : {e}"))?;
+        .map_err(|e| format!("network: {e}"))?;
     if !resp.status().is_success() {
         return Ok(info);
     }
-    let json: serde_json::Value = resp.json().await.map_err(|e| format!("réponse : {e}"))?;
+    let json: serde_json::Value = resp.json().await.map_err(|e| format!("response: {e}"))?;
     Ok(YoutubeInfo {
         title: json["title"].as_str().map(String::from),
         author: json["author_name"].as_str().map(String::from),
@@ -81,23 +81,73 @@ pub async fn fetch_info(url: &str) -> Result<YoutubeInfo, String> {
     })
 }
 
-/// Télécharge la miniature et la renvoie en data URL pour persistance
-/// hors ligne dans la configuration.
+/// Downloads the thumbnail and returns it as a data URL for offline
+/// persistence in the configuration.
 pub async fn thumbnail_data(url: &str) -> Result<String, String> {
-    let id = extract_video_id(url).ok_or_else(|| "URL YouTube non reconnue".to_string())?;
+    let id = extract_video_id(url).ok_or_else(|| "YouTube URL not recognized".to_string())?;
     let client = client()?;
     let resp = client
         .get(thumbnail_url(&id))
         .send()
         .await
-        .map_err(|e| format!("réseau : {e}"))?;
+        .map_err(|e| format!("network: {e}"))?;
     if !resp.status().is_success() {
-        return Err("miniature indisponible".into());
+        return Err("thumbnail unavailable".into());
     }
-    let bytes = resp.bytes().await.map_err(|e| format!("téléchargement : {e}"))?;
+    let bytes = resp.bytes().await.map_err(|e| format!("download: {e}"))?;
     use base64::Engine as _;
     Ok(format!(
         "data:image/jpeg;base64,{}",
         base64::engine::general_purpose::STANDARD.encode(&bytes)
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extracts_id_from_watch_urls() {
+        assert_eq!(
+            extract_video_id("https://www.youtube.com/watch?v=dQw4w9WgXcQ"),
+            Some("dQw4w9WgXcQ".into())
+        );
+        assert_eq!(
+            extract_video_id("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s"),
+            Some("dQw4w9WgXcQ".into())
+        );
+    }
+
+    #[test]
+    fn extracts_id_from_short_and_embedded_forms() {
+        assert_eq!(extract_video_id("https://youtu.be/dQw4w9WgXcQ"), Some("dQw4w9WgXcQ".into()));
+        assert_eq!(
+            extract_video_id("https://www.youtube.com/shorts/dQw4w9WgXcQ"),
+            Some("dQw4w9WgXcQ".into())
+        );
+        assert_eq!(
+            extract_video_id("https://www.youtube.com/embed/dQw4w9WgXcQ"),
+            Some("dQw4w9WgXcQ".into())
+        );
+    }
+
+    #[test]
+    fn accepts_a_raw_id() {
+        assert_eq!(extract_video_id("dQw4w9WgXcQ"), Some("dQw4w9WgXcQ".into()));
+    }
+
+    #[test]
+    fn rejects_garbage() {
+        assert_eq!(extract_video_id(""), None);
+        assert_eq!(extract_video_id("   "), None);
+        assert_eq!(extract_video_id("https://example.com/nothing"), None);
+    }
+
+    #[test]
+    fn thumbnail_url_shape() {
+        assert_eq!(
+            thumbnail_url("abc123"),
+            "https://i.ytimg.com/vi/abc123/hqdefault.jpg"
+        );
+    }
 }

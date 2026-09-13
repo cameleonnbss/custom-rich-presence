@@ -9,9 +9,11 @@ import {
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
+const APP_VERSION = "v0.3.0";
+
 /**
- * Éditeur : barre de titre personnalisée, navigation latérale,
- * panneaux de configuration et aperçu en temps réel.
+ * Editor: custom title bar, side navigation, configuration panels
+ * and live preview.
  */
 
 let cfg: Config;
@@ -21,7 +23,7 @@ let saveTimer: number | null = null;
 
 const root = document.getElementById("root")!;
 
-/* ---------- Construction du shell ---------- */
+/* ---------- Shell construction ---------- */
 
 const titlebar = document.createElement("div");
 titlebar.className = "titlebar";
@@ -56,34 +58,57 @@ btnClose.addEventListener("click", () => void getCurrentWindow().hide());
 
 type Section = "presence" | "musique" | "youtube" | "custom" | "apparence" | "presets" | "parametres";
 
-const NAV: Array<{ id: Section; label: string; icon: string }> = [
-  { id: "presence", label: "Présence", icon: icons.card },
-  { id: "musique", label: "Musique", icon: icons.music },
-  { id: "youtube", label: "YouTube", icon: icons.youtube },
-  { id: "custom", label: "Personnalisé", icon: icons.custom },
-  { id: "apparence", label: "Apparence", icon: icons.appearance },
-  { id: "presets", label: "Presets", icon: icons.pin },
-  { id: "parametres", label: "Paramètres", icon: icons.settings }
+const NAV_GROUPS: Array<{ title: string; items: Array<{ id: Section; label: string; icon: string }> }> = [
+  {
+    title: "Content",
+    items: [
+      { id: "presence", label: "Presence", icon: icons.card },
+      { id: "musique", label: "Media", icon: icons.music },
+      { id: "youtube", label: "YouTube", icon: icons.youtube },
+      { id: "custom", label: "Custom", icon: icons.custom }
+    ]
+  },
+  {
+    title: "Personalize",
+    items: [
+      { id: "apparence", label: "Appearance", icon: icons.appearance },
+      { id: "presets", label: "Presets", icon: icons.pin }
+    ]
+  },
+  {
+    title: "Application",
+    items: [
+      { id: "parametres", label: "Settings", icon: icons.settings }
+    ]
+  }
 ];
 
 let currentSection: Section = "presence";
 const navButtons = new Map<Section, HTMLButtonElement>();
 
-for (const item of NAV) {
-  const b = document.createElement("button");
-  b.className = "nav-item";
-  b.innerHTML = `${item.icon}<span>${item.label}</span>`;
-  b.addEventListener("click", () => navigate(item.id));
-  navButtons.set(item.id, b);
-  sidebar.appendChild(b);
-  if (item.id === "presets") {
-    const gap = document.createElement("div");
-    gap.className = "nav-gap";
-    sidebar.appendChild(gap);
+for (const group of NAV_GROUPS) {
+  const header = document.createElement("div");
+  header.className = "nav-header";
+  header.textContent = group.title;
+  sidebar.appendChild(header);
+  for (const item of group.items) {
+    const b = document.createElement("button");
+    b.className = "nav-item";
+    b.innerHTML = `${item.icon}<span>${item.label}</span>`;
+    b.addEventListener("click", () => navigate(item.id));
+    navButtons.set(item.id, b);
+    sidebar.appendChild(b);
   }
 }
+const sidebarEnd = document.createElement("div");
+sidebarEnd.className = "nav-gap";
+sidebar.appendChild(sidebarEnd);
+const versionLabel = document.createElement("div");
+versionLabel.className = "nav-version";
+versionLabel.textContent = APP_VERSION;
+sidebar.appendChild(versionLabel);
 
-/* ---------- Aides de construction de formulaire ---------- */
+/* ---------- Form helpers ---------- */
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K, className?: string, text?: string
@@ -161,7 +186,7 @@ function button(label: string, onClick: () => void, primary = false): HTMLButton
   return b;
 }
 
-/* ---------- Persistance + aperçu ---------- */
+/* ---------- Persistence + preview ---------- */
 
 function markDirty(): void {
   dirty = true;
@@ -175,11 +200,11 @@ async function persist(): Promise<void> {
   try {
     await saveConfig(structuredClone(cfg));
   } catch (e) {
-    console.error("sauvegarde impossible", e);
+    console.error("failed to save", e);
   }
 }
 
-const previewLabel = el("div", "preview-label", "Aperçu en temps réel");
+const previewLabel = el("div", "preview-label", "Live preview");
 const stage = el("div", "preview-stage");
 const cardEl = el("div");
 stage.appendChild(cardEl);
@@ -190,7 +215,7 @@ function redraw(): void {
   renderCard(cardEl, cfg, { media });
 }
 
-/* ---------- Panneaux ---------- */
+/* ---------- Panels ---------- */
 
 const panes = new Map<Section, HTMLElement>();
 
@@ -215,75 +240,71 @@ function navigate(section: Section): void {
   if (section === "musique") void pollMediaEditor();
 }
 
-/* ----- Présence ----- */
+/* ----- Presence ----- */
 
 function buildPresence(): void {
   const p = pane("presence", true);
-  const p1 = panel(p, "Contenu de la carte");
+  const p1 = panel(p, "Card content");
   p1.appendChild(toggleRow("Image", cfg.card.imageEnabled, v => { cfg.card.imageEnabled = v; markDirty(); redraw(); }));
-  p1.appendChild(toggleRow("Titre", cfg.card.titleEnabled, v => { cfg.card.titleEnabled = v; markDirty(); redraw(); }));
-  p1.appendChild(field("Titre", textInput(cfg.card.title, v => { cfg.card.title = v; markDirty(); redraw(); })));
-  p1.appendChild(toggleRow("Sous-titre", cfg.card.subtitleEnabled, v => { cfg.card.subtitleEnabled = v; markDirty(); redraw(); }));
-  p1.appendChild(field("Sous-titre", textInput(cfg.card.subtitle, v => { cfg.card.subtitle = v; markDirty(); redraw(); })));
-  p1.appendChild(toggleRow("Bouton", cfg.card.buttonEnabled, v => { cfg.card.buttonEnabled = v; markDirty(); redraw(); }));
-  p1.appendChild(field("Texte du bouton", textInput(cfg.card.buttonText, v => { cfg.card.buttonText = v; markDirty(); redraw(); })));
-  p1.appendChild(field("Lien du bouton (https://…)", textInput(cfg.card.buttonUrl, v => { cfg.card.buttonUrl = v; markDirty(); redraw(); }, "https://exemple.com")));
+  p1.appendChild(toggleRow("Title", cfg.card.titleEnabled, v => { cfg.card.titleEnabled = v; markDirty(); redraw(); }));
+  p1.appendChild(field("Title", textInput(cfg.card.title, v => { cfg.card.title = v; markDirty(); redraw(); })));
+  p1.appendChild(toggleRow("Subtitle", cfg.card.subtitleEnabled, v => { cfg.card.subtitleEnabled = v; markDirty(); redraw(); }));
+  p1.appendChild(field("Subtitle", textInput(cfg.card.subtitle, v => { cfg.card.subtitle = v; markDirty(); redraw(); })));
+  p1.appendChild(toggleRow("Button", cfg.card.buttonEnabled, v => { cfg.card.buttonEnabled = v; markDirty(); redraw(); }));
+  p1.appendChild(field("Button label", textInput(cfg.card.buttonText, v => { cfg.card.buttonText = v; markDirty(); redraw(); })));
+  p1.appendChild(field("Button link (https://…)", textInput(cfg.card.buttonUrl, v => { cfg.card.buttonUrl = v; markDirty(); redraw(); }, "https://example.com")));
 
-  const p2 = panel(p, "Éléments dynamiques");
-  p2.appendChild(toggleRow("Chronomètre", cfg.card.chronoEnabled, v => {
+  const p2 = panel(p, "Dynamic elements");
+  p2.appendChild(toggleRow("Chronometer", cfg.card.chronoEnabled, v => {
     cfg.card.chronoEnabled = v;
     if (v && cfg.card.chronoStartedAt === 0) cfg.card.chronoStartedAt = Date.now();
     markDirty(); redraw();
   }));
-  const chronoBtn = button("Réinitialiser le chronomètre", () => void resetChrono().then(() => redraw()), false);
+  const chronoBtn = button("Reset chronometer", () => void resetChrono().then(() => redraw()), false);
   p2.appendChild(chronoBtn);
-  p2.appendChild(toggleRow("Barre de progression", cfg.card.progressEnabled, v => { cfg.card.progressEnabled = v; markDirty(); redraw(); }));
-  p2.appendChild(rangeRow("Progression", 0, 100, 1, cfg.card.progressValue,
+  p2.appendChild(toggleRow("Progress bar", cfg.card.progressEnabled, v => { cfg.card.progressEnabled = v; markDirty(); redraw(); }));
+  p2.appendChild(rangeRow("Progress", 0, 100, 1, cfg.card.progressValue,
     v => { cfg.card.progressValue = v; markDirty(); redraw(); }, v => `${Math.round(v)} %`));
   p2.appendChild(field("Maximum", textInput(String(cfg.card.progressMax), v => {
     const n = Number(v.replace(",", "."));
     if (Number.isFinite(n) && n > 0) { cfg.card.progressMax = n; markDirty(); redraw(); }
   })));
-  p2.appendChild(toggleRow("Date et heure", cfg.card.datetimeEnabled, v => { cfg.card.datetimeEnabled = v; markDirty(); redraw(); }));
+  p2.appendChild(toggleRow("Date and time", cfg.card.datetimeEnabled, v => { cfg.card.datetimeEnabled = v; markDirty(); redraw(); }));
 }
 
-/* ----- Musique ----- */
+/* ----- Media ----- */
 
 function buildMusique(): void {
   const p = pane("musique", true);
-  const p1 = panel(p, "Lecture multimédia Windows");
-  const hint = el("p", "hint",
-    "Utilise les contrôles multimédias de Windows (SMTC) : Spotify, navigateurs, lecteurs système et toute application compatible. " +
-    "Si rien n'est détecté, la carte affiche son contenu statique — aucune erreur n'est produite.");
-  p1.appendChild(hint);
-  p1.appendChild(toggleRow("Suivre la lecture en cours", cfg.card.mediaEnabled, v => {
+  const p1 = panel(p, "Windows media playback");
+  p1.appendChild(el("p", "hint",
+    "Uses the Windows System Media Transport Controls (SMTC): Spotify, browsers, system players and any compatible app. " +
+    "If nothing is detected, the card simply shows its static content — no error is raised."));
+  p1.appendChild(toggleRow("Follow current playback", cfg.card.mediaEnabled, v => {
     cfg.card.mediaEnabled = v; markDirty(); redraw();
   }));
 
-  const status = el("div", "hint", "—");
-  p1.appendChild(status);
-  const refresh = button("Actualiser", () => void pollMediaEditor());
-  p1.appendChild(refresh);
+  p1.appendChild(el("div", "hint", "—"));
+  p1.appendChild(button("Refresh", () => void pollMediaEditor()));
 
-  const p2 = panel(p, "Textes de repli");
-  const h2 = el("p", "hint",
-    "Affichés lorsque la carte n'est pas en mode « suivre la lecture » ou qu'aucun média n'est détecté.");
-  p2.appendChild(h2);
-  p2.appendChild(field("Titre", textInput(cfg.card.title, v => { cfg.card.title = v; markDirty(); redraw(); })));
-  p2.appendChild(field("Sous-titre", textInput(cfg.card.subtitle, v => { cfg.card.subtitle = v; markDirty(); redraw(); })));
+  const p2 = panel(p, "Fallback texts");
+  p2.appendChild(el("p", "hint",
+    "Shown when the card is not following playback or when no media is detected."));
+  p2.appendChild(field("Title", textInput(cfg.card.title, v => { cfg.card.title = v; markDirty(); redraw(); })));
+  p2.appendChild(field("Subtitle", textInput(cfg.card.subtitle, v => { cfg.card.subtitle = v; markDirty(); redraw(); })));
 }
 
 async function pollMediaEditor(): Promise<void> {
   try {
     media = await getMediaStatus();
     if (media.available) {
-      const st = media.playing ? "en lecture" : "en pause";
-      statusText = `${media.title} — ${media.artist || "artiste inconnu"} (${st}, via ${media.appId || "application inconnue"})`;
+      const st = media.playing ? "playing" : "paused";
+      statusText = `${media.title} — ${media.artist || "unknown artist"} (${st}, via ${media.appId || "unknown app"})`;
     } else {
-      statusText = "Aucun média détecté pour le moment.";
+      statusText = "No media detected at the moment.";
     }
   } catch {
-    statusText = "Aucun média détecté pour le moment.";
+    statusText = "No media detected at the moment.";
   }
   const statusEl = panes.get("musique")?.querySelectorAll(".hint")[1];
   if (statusEl) statusEl.textContent = statusText;
@@ -296,14 +317,14 @@ let statusText = "—";
 
 function buildYoutube(): void {
   const p = pane("youtube", true);
-  const p1 = panel(p, "Vidéo YouTube");
+  const p1 = panel(p, "YouTube video");
   p1.appendChild(el("p", "hint",
-    "Collez l'URL d'une vidéo : la miniature est récupérée automatiquement (aucune clé API requise). " +
-    "Hors ligne, la dernière miniature mémorisée reste affichée."));
+    "Paste a video URL: the thumbnail is fetched automatically (no API key required). " +
+    "Offline, the last cached thumbnail keeps showing."));
   const urlInput = textInput("", () => {}, "https://www.youtube.com/watch?v=…");
-  p1.appendChild(field("URL de la vidéo", urlInput));
+  p1.appendChild(field("Video URL", urlInput));
 
-  const applyBtn = button("Utiliser cette vidéo", () => {
+  const applyBtn = button("Use this video", () => {
     const url = urlInput.value.trim();
     if (!url) return;
     applyBtn.disabled = true;
@@ -316,13 +337,13 @@ function buildYoutube(): void {
         cfg.card.subtitleEnabled = true;
         cfg.card.subtitle = info.author ? `${info.author} — YouTube` : "YouTube";
         cfg.card.buttonEnabled = true;
-        cfg.card.buttonText = "Regarder";
+        cfg.card.buttonText = "Watch";
         cfg.card.buttonUrl = `https://www.youtube.com/watch?v=${info.videoId}`;
         cfg.card.preset = "youtube";
         try {
           cfg.card.imageData = await youtubeThumbnailData(url);
         } catch {
-          /* hors ligne : on garde l'image existante */
+          /* offline: keep the existing image */
         }
         markDirty(); redraw();
       } catch (e) {
@@ -334,19 +355,19 @@ function buildYoutube(): void {
   }, true);
   p1.appendChild(applyBtn);
 
-  const p2 = panel(p, "Personnalisation");
-  p2.appendChild(field("Titre affiché", textInput(cfg.card.title, v => { cfg.card.title = v; markDirty(); redraw(); })));
-  p2.appendChild(field("Sous-titre affiché", textInput(cfg.card.subtitle, v => { cfg.card.subtitle = v; markDirty(); redraw(); })));
-  p2.appendChild(field("Lien du bouton", textInput(cfg.card.buttonUrl, v => { cfg.card.buttonUrl = v; markDirty(); redraw(); }, "https://www.youtube.com/watch?v=…")));
+  const p2 = panel(p, "Customization");
+  p2.appendChild(field("Displayed title", textInput(cfg.card.title, v => { cfg.card.title = v; markDirty(); redraw(); })));
+  p2.appendChild(field("Displayed subtitle", textInput(cfg.card.subtitle, v => { cfg.card.subtitle = v; markDirty(); redraw(); })));
+  p2.appendChild(field("Button link", textInput(cfg.card.buttonUrl, v => { cfg.card.buttonUrl = v; markDirty(); redraw(); }, "https://www.youtube.com/watch?v=…")));
 }
 
-/* ----- Personnalisé ----- */
+/* ----- Custom ----- */
 
 function buildCustom(): void {
   const p = pane("custom", true);
   const p1 = panel(p, "Image");
-  p1.appendChild(toggleRow("Afficher l'image", cfg.card.imageEnabled, v => { cfg.card.imageEnabled = v; markDirty(); redraw(); }));
-  const imgBtn = button("Choisir une image…", () => {
+  p1.appendChild(toggleRow("Show image", cfg.card.imageEnabled, v => { cfg.card.imageEnabled = v; markDirty(); redraw(); }));
+  const imgBtn = button("Choose an image…", () => {
     void (async () => {
       const { open } = await import("@tauri-apps/plugin-dialog");
       const picked = await open({
@@ -364,36 +385,36 @@ function buildCustom(): void {
     })();
   });
   p1.appendChild(imgBtn);
-  const clearImg = button("Retirer l'image", () => { cfg.card.imageData = ""; markDirty(); redraw(); });
+  const clearImg = button("Remove image", () => { cfg.card.imageData = ""; markDirty(); redraw(); });
   p1.appendChild(clearImg);
 
-  const p2 = panel(p, "Textes");
-  p2.appendChild(toggleRow("Titre", cfg.card.titleEnabled, v => { cfg.card.titleEnabled = v; markDirty(); redraw(); }));
-  p2.appendChild(field("Titre", textInput(cfg.card.title, v => { cfg.card.title = v; markDirty(); redraw(); })));
-  p2.appendChild(toggleRow("Sous-titre", cfg.card.subtitleEnabled, v => { cfg.card.subtitleEnabled = v; markDirty(); redraw(); }));
-  p2.appendChild(field("Sous-titre", textInput(cfg.card.subtitle, v => { cfg.card.subtitle = v; markDirty(); redraw(); })));
-  p2.appendChild(toggleRow("Texte libre", cfg.card.bodyEnabled, v => { cfg.card.bodyEnabled = v; markDirty(); redraw(); }));
-  p2.appendChild(field("Texte libre", textarea(cfg.card.body, v => { cfg.card.body = v; markDirty(); redraw(); })));
+  const p2 = panel(p, "Texts");
+  p2.appendChild(toggleRow("Title", cfg.card.titleEnabled, v => { cfg.card.titleEnabled = v; markDirty(); redraw(); }));
+  p2.appendChild(field("Title", textInput(cfg.card.title, v => { cfg.card.title = v; markDirty(); redraw(); })));
+  p2.appendChild(toggleRow("Subtitle", cfg.card.subtitleEnabled, v => { cfg.card.subtitleEnabled = v; markDirty(); redraw(); }));
+  p2.appendChild(field("Subtitle", textInput(cfg.card.subtitle, v => { cfg.card.subtitle = v; markDirty(); redraw(); })));
+  p2.appendChild(toggleRow("Free text", cfg.card.bodyEnabled, v => { cfg.card.bodyEnabled = v; markDirty(); redraw(); }));
+  p2.appendChild(field("Free text", textarea(cfg.card.body, v => { cfg.card.body = v; markDirty(); redraw(); })));
 
-  const p3 = panel(p, "Bouton");
-  p3.appendChild(toggleRow("Afficher le bouton", cfg.card.buttonEnabled, v => { cfg.card.buttonEnabled = v; markDirty(); redraw(); }));
-  p3.appendChild(field("Texte", textInput(cfg.card.buttonText, v => { cfg.card.buttonText = v; markDirty(); redraw(); })));
-  p3.appendChild(field("Lien", textInput(cfg.card.buttonUrl, v => { cfg.card.buttonUrl = v; markDirty(); redraw(); }, "https://…")));
+  const p3 = panel(p, "Button");
+  p3.appendChild(toggleRow("Show button", cfg.card.buttonEnabled, v => { cfg.card.buttonEnabled = v; markDirty(); redraw(); }));
+  p3.appendChild(field("Label", textInput(cfg.card.buttonText, v => { cfg.card.buttonText = v; markDirty(); redraw(); })));
+  p3.appendChild(field("Link", textInput(cfg.card.buttonUrl, v => { cfg.card.buttonUrl = v; markDirty(); redraw(); }, "https://…")));
 }
 
-/* ----- Apparence ----- */
+/* ----- Appearance ----- */
 
 function buildApparence(): void {
   const p = pane("apparence", true);
-  const p1 = panel(p, "Dimensions et position");
-  p1.appendChild(rangeRow("Largeur", 220, 560, 5, cfg.appearance.width, v => { cfg.appearance.width = v; markDirty(); redraw(); }, v => `${Math.round(v)} px`));
-  p1.appendChild(rangeRow("Hauteur", 120, 720, 5, cfg.appearance.height, v => { cfg.appearance.height = v; markDirty(); redraw(); }, v => `${Math.round(v)} px`));
-  p1.appendChild(rangeRow("Rayon des coins", 0, 28, 1, cfg.appearance.cornerRadius, v => { cfg.appearance.cornerRadius = v; markDirty(); redraw(); }, v => `${Math.round(v)} px`));
-  p1.appendChild(rangeRow("Opacité", 0.2, 1, 0.01, cfg.appearance.opacity, v => { cfg.appearance.opacity = v; markDirty(); redraw(); }, v => `${Math.round(v * 100)} %`));
-  p1.appendChild(toggleRow("Mode sans bordure", cfg.appearance.borderless, v => { cfg.appearance.borderless = v; markDirty(); redraw(); }));
-  p1.appendChild(toggleRow("Toujours au-dessus", cfg.appearance.alwaysOnTop, v => { cfg.appearance.alwaysOnTop = v; markDirty(); redraw(); }));
+  const p1 = panel(p, "Dimensions and position");
+  p1.appendChild(rangeRow("Width", 220, 560, 5, cfg.appearance.width, v => { cfg.appearance.width = v; markDirty(); redraw(); }, v => `${Math.round(v)} px`));
+  p1.appendChild(rangeRow("Height", 120, 720, 5, cfg.appearance.height, v => { cfg.appearance.height = v; markDirty(); redraw(); }, v => `${Math.round(v)} px`));
+  p1.appendChild(rangeRow("Corner radius", 0, 28, 1, cfg.appearance.cornerRadius, v => { cfg.appearance.cornerRadius = v; markDirty(); redraw(); }, v => `${Math.round(v)} px`));
+  p1.appendChild(rangeRow("Opacity", 0.2, 1, 0.01, cfg.appearance.opacity, v => { cfg.appearance.opacity = v; markDirty(); redraw(); }, v => `${Math.round(v * 100)} %`));
+  p1.appendChild(toggleRow("Borderless mode", cfg.appearance.borderless, v => { cfg.appearance.borderless = v; markDirty(); redraw(); }));
+  p1.appendChild(toggleRow("Always on top", cfg.appearance.alwaysOnTop, v => { cfg.appearance.alwaysOnTop = v; markDirty(); redraw(); }));
 
-  const p2 = panel(p, "Typographie");
+  const p2 = panel(p, "Typography");
   const fonts = ["Segoe UI Variable", "Segoe UI", "Cascadia Code", "Consolas", "Arial", "Verdana", "Georgia", "Times New Roman"];
   const sel = document.createElement("select");
   for (const f of fonts) {
@@ -403,12 +424,12 @@ function buildApparence(): void {
     sel.appendChild(o);
   }
   sel.addEventListener("change", () => { cfg.appearance.fontFamily = sel.value; markDirty(); redraw(); });
-  p2.appendChild(field("Police", sel));
-  p2.appendChild(rangeRow("Taille du texte", 0.8, 1.4, 0.05, cfg.appearance.fontScale, v => { cfg.appearance.fontScale = v; markDirty(); redraw(); }, v => `${Math.round(v * 100)} %`));
-  p2.appendChild(rangeRow("Espacement", 6, 32, 1, cfg.appearance.spacing, v => { cfg.appearance.spacing = v; markDirty(); redraw(); }, v => `${Math.round(v)} px`));
+  p2.appendChild(field("Font", sel));
+  p2.appendChild(rangeRow("Text size", 0.8, 1.4, 0.05, cfg.appearance.fontScale, v => { cfg.appearance.fontScale = v; markDirty(); redraw(); }, v => `${Math.round(v * 100)} %`));
+  p2.appendChild(rangeRow("Spacing", 6, 32, 1, cfg.appearance.spacing, v => { cfg.appearance.spacing = v; markDirty(); redraw(); }, v => `${Math.round(v)} px`));
 
-  const pAnim = panel(p, "Apparition et durée");
-  const anims = [["Fondu", "fade"], ["Glissement", "slide"], ["Échelle", "scale"], ["Aucune", "none"]] as const;
+  const pAnim = panel(p, "Entrance and duration");
+  const anims = [["Fade", "fade"], ["Slide", "slide"], ["Scale", "scale"], ["None", "none"]] as const;
   const animSel = document.createElement("select");
   for (const [label, v] of anims) {
     const o = document.createElement("option");
@@ -417,24 +438,24 @@ function buildApparence(): void {
     animSel.appendChild(o);
   }
   animSel.addEventListener("change", () => { cfg.appearance.animIn = animSel.value; markDirty(); });
-  pAnim.appendChild(field("Animation d'apparition", animSel));
-  pAnim.appendChild(rangeRow("Durée de l'animation (ms)", 80, 600, 20, cfg.appearance.animDuration,
+  pAnim.appendChild(field("Entrance animation", animSel));
+  pAnim.appendChild(rangeRow("Animation duration (ms)", 80, 600, 20, cfg.appearance.animDuration,
     v => { cfg.appearance.animDuration = v; markDirty(); }, v => `${Math.round(v)} ms`));
   const minutesInput = textInput(String(Math.max(0, Math.round((cfg.card.displayUntil - Date.now()) / 60000)) || 0), v => {
     const m = Number(v.replace(",", "."));
     cfg.card.displayUntil = Number.isFinite(m) && m > 0 ? Date.now() + m * 60000 : 0;
     markDirty();
   });
-  pAnim.appendChild(field("Masquer automatiquement après (minutes, 0 = permanent)", minutesInput));
+  pAnim.appendChild(field("Auto-hide after (minutes, 0 = permanent)", minutesInput));
 
-  const p3 = panel(p, "Position du panneau");
+  const p3 = panel(p, "Panel position");
   const row = el("div", "btn-row");
-  for (const [label, corner] of [["Haut gauche", "tl"], ["Haut droit", "tr"], ["Bas gauche", "bl"], ["Bas droit", "br"]] as const) {
+  for (const [label, corner] of [["Top left", "tl"], ["Top right", "tr"], ["Bottom left", "bl"], ["Bottom right", "br"]] as const) {
     row.appendChild(button(label, () => void snapOverlay(corner)));
   }
   p3.appendChild(row);
-  p3.appendChild(toggleRow("Verrouiller la position", cfg.overlay.locked, v => { cfg.overlay.locked = v; markDirty(); void setOverlayLock(v); }));
-  p3.appendChild(button(cfg.overlay.visible ? "Masquer le panneau" : "Afficher le panneau", () => {
+  p3.appendChild(toggleRow("Lock position", cfg.overlay.locked, v => { cfg.overlay.locked = v; markDirty(); void setOverlayLock(v); }));
+  p3.appendChild(button(cfg.overlay.visible ? "Hide panel" : "Show panel", () => {
     void (cfg.overlay.visible ? hideOverlay() : showOverlay());
   }));
 }
@@ -442,11 +463,11 @@ function buildApparence(): void {
 /* ----- Presets ----- */
 
 const PRESETS: Array<{ id: string; name: string; desc: string }> = [
-  { id: "minimal", name: "Minimal", desc: "Titre seul, carte compacte et discrète." },
-  { id: "media", name: "Media", desc: "Pochette, progression et bouton — pensé pour la musique." },
-  { id: "gaming", name: "Gaming", desc: "Jaquette, chronomètre de session et bouton d'ouverture." },
-  { id: "youtube", name: "YouTube", desc: "Miniature de vidéo, titre et bouton Regarder." },
-  { id: "custom", name: "Custom", desc: "Votre configuration libre, inchangée." }
+  { id: "minimal", name: "Minimal", desc: "Title only — a compact, discreet card." },
+  { id: "media", name: "Media", desc: "Cover art, progress bar and button — built for music." },
+  { id: "gaming", name: "Gaming", desc: "Cover image, session chronometer and open button." },
+  { id: "youtube", name: "YouTube", desc: "Video thumbnail, title and Watch button." },
+  { id: "custom", name: "Custom", desc: "Your free-form configuration, unchanged." }
 ];
 
 function buildPresets(): void {
@@ -465,54 +486,54 @@ function buildPresets(): void {
   }
   p.appendChild(grid);
   p.appendChild(el("p", "hint",
-    "Un preset configure dimensions, contenu et éléments affichés. Vous pouvez ensuite tout ajuster dans les autres sections."));
+    "A preset configures dimensions, content and visible elements. You can then fine-tune everything in the other sections."));
 }
 
-/* ----- Paramètres ----- */
+/* ----- Settings ----- */
 
-function buildParametres(): void {
+function buildSettings(): void {
   const p = pane("parametres", false);
-  p.appendChild(el("h2", undefined, "Paramètres"));
+  p.appendChild(el("h2", undefined, "Settings"));
 
-  const p1 = panel(p, "Démarrage");
-  const autoRow = toggleRow("Lancer au démarrage de Windows", false, v => {
+  const p1 = panel(p, "Startup");
+  const autoRow = toggleRow("Launch at Windows startup", false, v => {
     void (async () => {
       const { enable, disable } = await import("@tauri-apps/plugin-autostart");
       if (v) await enable(); else await disable();
     })();
   });
   p1.appendChild(autoRow);
-  p1.appendChild(el("p", "hint", "L'application démarre réduite dans la zone de notification ; le panneau réapparaît s'il était affiché."));
+  p1.appendChild(el("p", "hint", "The app starts minimized to the notification area; the panel reappears if it was visible."));
 
-  const p2 = panel(p, "Données");
+  const p2 = panel(p, "Data");
   p2.appendChild(el("p", "hint",
-    "Toute la configuration est stockée localement dans %APPDATA%\\CustomRichPresence\\config.json. Aucune donnée n'est envoyée à un serveur."));
-  p2.appendChild(button("Ouvrir le dossier de données", () => void openDataFolder()));
+    "All configuration is stored locally in %APPDATA%\\CustomRichPresence\\config.json. Nothing is sent to any server."));
+  p2.appendChild(button("Open data folder", () => void openDataFolder()));
 
   const p3 = panel(p, "Discord Rich Presence");
   p3.appendChild(el("p", "hint",
-    "Reflète la carte comme statut Discord (IPC locale, aucun serveur). " +
-    "Nécessite un identifiant d'application Discord : créez une application sur " +
-    "discord.com/developers (onglet Rich Presence > Art Assets pour y téléverser " +
-    "une image nommée app-icon). Discord doit être lancé."));
-  p3.appendChild(toggleRow("Activer la présence Discord", cfg.discord.enabled, v => {
+    "Mirrors the card as a Discord status (local IPC, no server). " +
+    "Requires a Discord application ID: create an application on " +
+    "discord.com/developers (Rich Presence > Art Assets tab to upload " +
+    "an image named app-icon). Discord must be running."));
+  p3.appendChild(toggleRow("Enable Discord Rich Presence", cfg.discord.enabled, v => {
     cfg.discord.enabled = v; markDirty();
   }));
-  p3.appendChild(field("Identifiant d'application (client ID)", textInput(cfg.discord.clientId, v => {
+  p3.appendChild(field("Application ID (client ID)", textInput(cfg.discord.clientId, v => {
     cfg.discord.clientId = v.trim(); markDirty();
-  }, "ex. 1234567890123456789")));
+  }, "e.g. 1234567890123456789")));
   const discordStatus = el("div", "hint", "—");
   p3.appendChild(discordStatus);
-  p3.appendChild(button("Vérifier la connexion", () => {
+  p3.appendChild(button("Check connection", () => {
     void getDiscordStatus()
-      .then(pipe => { discordStatus.textContent = `Discord détecté (${pipe})`; })
-      .catch(() => { discordStatus.textContent = "Discord non détecté — lancez Discord puis réessayez."; });
+      .then(pipe => { discordStatus.textContent = `Discord detected (${pipe})`; })
+      .catch(() => { discordStatus.textContent = "Discord not detected — start Discord and try again."; });
   }));
 
-  const p4 = panel(p, "À propos");
-  p4.appendChild(el("p", "hint", "Custom Rich Presence — panneau de présence personnalisé pour le bureau Windows."));
+  const p4 = panel(p, "About");
+  p4.appendChild(el("p", "hint", "Custom Rich Presence — a custom presence panel for the Windows desktop."));
 
-  // État initial du démarrage automatique
+  // Initial autostart state
   void (async () => {
     const { isEnabled } = await import("@tauri-apps/plugin-autostart");
     const input = autoRow.querySelector<HTMLInputElement>("input");
@@ -520,7 +541,7 @@ function buildParametres(): void {
   })();
 }
 
-/* ----- Synchronisation externe (tray, autres fenêtres) ----- */
+/* ----- External sync (tray, other windows) ----- */
 
 listen<Config>("card-updated", (e) => {
   cfg = e.payload;
@@ -532,7 +553,7 @@ listen<string>("navigate", (e) => {
   if (navButtons.has(s)) navigate(s);
 });
 
-/* ----- Initialisation ----- */
+/* ----- Init ----- */
 
 async function init(): Promise<void> {
   cfg = await getConfig();
@@ -542,7 +563,7 @@ async function init(): Promise<void> {
   buildCustom();
   buildApparence();
   buildPresets();
-  buildParametres();
+  buildSettings();
   navigate("presence");
   redraw();
 }

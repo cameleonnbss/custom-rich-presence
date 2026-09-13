@@ -1,11 +1,11 @@
-//! Gestion de la fenêtre overlay : géométrie, visibilité, persistance.
+//! Overlay window management: geometry, visibility, persistence.
 
 use crate::config::{AppState, Config};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, PhysicalPosition, PhysicalSize};
 
-/// Débit d'écriture disque pour les événements de déplacement/redimensionnement.
+/// Disk write throttle for move/resize events.
 const SAVE_THROTTLE: Duration = Duration::from_millis(800);
 
 static LAST_SAVE: Mutex<Option<Instant>> = Mutex::new(None);
@@ -16,7 +16,7 @@ fn apply(win: &tauri::WebviewWindow, cfg: &Config) {
     let _ = win.set_always_on_top(cfg.appearance.always_on_top);
 }
 
-/// Réapplique la géométrie mémorisée (après changement de configuration).
+/// Reapplies the stored geometry (after a config change).
 pub fn apply_from_state(app: &AppHandle) {
     if let Some(win) = app.get_webview_window("overlay") {
         let cfg = app.state::<AppState>().config.lock().unwrap().clone();
@@ -39,7 +39,7 @@ pub fn hide(app: &AppHandle) {
     set_visible_state(app, false);
 }
 
-/// Affiche ou masque ; renvoie le nouvel état.
+/// Shows or hides; returns the new state.
 pub fn toggle(app: &AppHandle) -> bool {
     let visible = app.state::<AppState>().config.lock().unwrap().overlay.visible;
     if visible { hide(app); } else { show(app); }
@@ -101,7 +101,7 @@ pub fn throttled_save(state: &tauri::State<'_, AppState>) {
     }
 }
 
-/// Sauvegarde finale (à la fermeture de l'application).
+/// Final save (on app exit).
 pub fn flush(state: &tauri::State<'_, AppState>) {
     state.save();
 }

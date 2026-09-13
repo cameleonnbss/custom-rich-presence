@@ -1,5 +1,5 @@
-//! Modèles de configuration + persistance locale (JSON atomique).
-//! Stockage : %APPDATA%\CustomRichPresence\config.json
+//! Configuration models + local persistence (atomic JSON).
+//! Storage: %APPDATA%\CustomRichPresence\config.json
 
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -22,15 +22,15 @@ pub struct CardConfig {
     pub button_text: String,
     pub button_url: String,
     pub chrono_enabled: bool,
-    /// Epoch ms du départ du chronomètre (0 = non démarré)
+    /// Chronometer start in epoch ms (0 = not started)
     pub chrono_started_at: u64,
     pub progress_enabled: bool,
     pub progress_value: f64,
     pub progress_max: f64,
     pub datetime_enabled: bool,
-    /// Suivre la lecture multimédia Windows (SMTC)
+    /// Follow Windows media playback (SMTC)
     pub media_enabled: bool,
-    /// Epoch ms : masquer automatiquement la présence après cette date (0 = permanent)
+    /// Epoch ms: auto-hide the presence after this date (0 = permanent)
     pub display_until: u64,
 }
 
@@ -50,7 +50,7 @@ pub struct AppearanceConfig {
     pub anim_out: String,
     /// ms
     pub anim_duration: u32,
-    /// Mode sans bordure (aucun liseré autour de la carte)
+    /// Borderless mode (no frame around the card)
     pub borderless: bool,
     pub always_on_top: bool,
 }
@@ -58,7 +58,7 @@ pub struct AppearanceConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct OverlayConfig {
-    /// Position logique (indépendante du DPI)
+    /// Logical position (DPI-independent)
     pub x: f64,
     pub y: f64,
     pub locked: bool,
@@ -74,7 +74,7 @@ pub struct Config {
     pub discord: DiscordConfig,
 }
 
-/// Intégration Discord Rich Presence (IPC locale, aucun serveur).
+/// Discord Rich Presence integration (local IPC, no server).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct DiscordConfig {
@@ -100,13 +100,13 @@ impl Default for CardConfig {
             image_enabled: false,
             image_data: String::new(),
             title_enabled: true,
-            title: "Ma présence".into(),
+            title: "My presence".into(),
             subtitle_enabled: true,
-            subtitle: "Sous-titre".into(),
+            subtitle: "Subtitle".into(),
             body_enabled: false,
             body: String::new(),
             button_enabled: false,
-            button_text: "Ouvrir".into(),
+            button_text: "Open".into(),
             button_url: String::new(),
             chrono_enabled: false,
             chrono_started_at: 0,
@@ -147,8 +147,8 @@ impl Default for OverlayConfig {
 
 impl Default for Config {
     fn default() -> Self {
-        // Position par défaut : coin inférieur droit de l'écran principal
-        // (affiné au premier affichage par le frontend).
+        // Default position: bottom-right corner of the primary screen
+        // (refined by the frontend on first display).
         Self {
             card: CardConfig::default(),
             appearance: AppearanceConfig::default(),
@@ -186,7 +186,7 @@ pub fn config_path() -> PathBuf {
     base.join("CustomRichPresence").join("config.json")
 }
 
-/// Écriture atomique : fichier temporaire puis renommage.
+/// Atomic write: temporary file, then rename.
 pub fn write_atomic(path: &PathBuf, data: &str) {
     if let Some(dir) = path.parent() {
         let _ = fs::create_dir_all(dir);
@@ -194,5 +194,53 @@ pub fn write_atomic(path: &PathBuf, data: &str) {
     let tmp = path.with_extension("json.tmp");
     if fs::write(&tmp, data).is_ok() {
         let _ = fs::rename(&tmp, path);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_config_serializes_to_camel_case() {
+        let cfg = Config::default();
+        let json = serde_json::to_string(&cfg).unwrap();
+        assert!(json.contains("\"titleEnabled\""));
+        assert!(json.contains("\"cornerRadius\""));
+        assert!(!json.contains("title_enabled"));
+    }
+
+    #[test]
+    fn config_survives_a_json_round_trip() {
+        let mut cfg = Config::default();
+        cfg.card.title = "Hello".into();
+        cfg.appearance.width = 412.5;
+        cfg.overlay.locked = true;
+        cfg.discord.client_id = "1234567890".into();
+
+        let json = serde_json::to_string(&cfg).unwrap();
+        let back: Config = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(back.card.title, "Hello");
+        assert_eq!(back.appearance.width, 412.5);
+        assert!(back.overlay.locked);
+        assert_eq!(back.discord.client_id, "1234567890");
+    }
+
+    #[test]
+    fn partial_json_uses_defaults() {
+        let parsed: Config = serde_json::from_str("{}").unwrap();
+        assert_eq!(parsed.card.title, "My presence");
+        assert!(parsed.appearance.always_on_top);
+    }
+
+    #[test]
+    fn atomic_write_produces_the_file() {
+        let dir = std::env::temp_dir().join("crp-test-atomic");
+        let _ = fs::remove_dir_all(&dir);
+        let path = dir.join("nested").join("cfg.json");
+        write_atomic(&path, "{}");
+        assert_eq!(fs::read_to_string(&path).unwrap(), "{}");
+        let _ = fs::remove_dir_all(&dir);
     }
 }

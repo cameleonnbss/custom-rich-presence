@@ -1,4 +1,4 @@
-//! Commandes exposées au frontend.
+//! Commands exposed to the frontend.
 
 use crate::config::{AppState, Config};
 use crate::{media, overlay, presets, youtube};
@@ -40,7 +40,7 @@ pub async fn youtube_thumbnail_data(url: String) -> Result<String, String> {
     youtube::thumbnail_data(&url).await
 }
 
-/// Redémarre le chronomètre ; renvoie le nouvel epoch de départ.
+/// Restarts the chronometer; returns the new start epoch.
 #[tauri::command]
 pub fn reset_chrono(app: AppHandle, state: State<AppState>) -> Result<u64, String> {
     let now = std::time::SystemTime::now()
@@ -87,16 +87,16 @@ pub fn set_overlay_position(app: AppHandle, x: f64, y: f64) -> Result<(), String
     Ok(())
 }
 
-/// Colle la présence dans un coin de l'écran courant : "tl", "tr", "bl", "br".
+/// Snaps the presence into a corner of the current screen: "tl", "tr", "bl", "br".
 #[tauri::command]
 pub fn snap_overlay(app: AppHandle, corner: String) -> Result<(), String> {
     let win = app
         .get_webview_window("overlay")
-        .ok_or_else(|| "fenêtre overlay introuvable".to_string())?;
+        .ok_or_else(|| "overlay window not found".to_string())?;
     let monitor = win
         .current_monitor()
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| "aucun écran détecté".to_string())?;
+        .ok_or_else(|| "no screen detected".to_string())?;
     let scale = win.scale_factor().map_err(|e| e.to_string())?;
     let monitor_w = monitor.size().width as f64 / scale;
     let monitor_h = monitor.size().height as f64 / scale;
@@ -182,7 +182,7 @@ pub fn read_image_data_url(path: String) -> Result<String, String> {
     ))
 }
 
-/// Statut Discord pour l'UI : renvoie le pipe détecté ou une erreur.
+/// Discord status for the UI: returns the detected pipe or an error.
 #[tauri::command]
 pub fn get_discord_status() -> Result<String, String> {
     crate::discord::pipe_available()

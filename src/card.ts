@@ -2,7 +2,7 @@ import type { Config, MediaStatus } from "./types";
 
 const nowMs = (): number => Date.now();
 
-function fmtElapsed(ms: number): string {
+export function fmtElapsed(ms: number): string {
   const total = Math.floor(ms / 1000);
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
@@ -12,14 +12,14 @@ function fmtElapsed(ms: number): string {
   return h > 0 ? `${h} h ${mm}` : `${String(m).padStart(2, "0")}:${ss}`;
 }
 
-function fmtClock(ms: number): string {
+export function fmtClock(ms: number): string {
   const total = Math.floor(ms / 1000);
   const m = Math.floor(total / 60);
   const s = total % 60;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-function safeUrl(u: string): string | null {
+export function safeUrl(u: string): string | null {
   try {
     const parsed = new URL(u);
     return parsed.protocol === "http:" || parsed.protocol === "https:"
@@ -35,8 +35,8 @@ export interface CardContext {
 }
 
 /**
- * Rendu de la carte — partagé par l'aperçu de l'éditeur et l'overlay.
- * Reconstruit le DOM à chaque appel : simple, prévisible, sans framework.
+ * Card rendering — shared by the editor preview and the overlay.
+ * Rebuilds the DOM on each call: simple, predictable, framework-free.
  */
 export function renderCard(root: HTMLElement, cfg: Config, ctx: CardContext): void {
   const a = cfg.appearance;
@@ -99,7 +99,7 @@ export function renderCard(root: HTMLElement, cfg: Config, ctx: CardContext): vo
   if (c.chronoEnabled && c.chronoStartedAt > 0) {
     const meta = document.createElement("div");
     meta.className = "card-meta";
-    meta.textContent = `Depuis ${fmtElapsed(nowMs() - c.chronoStartedAt)}`;
+    meta.textContent = `Since ${fmtElapsed(nowMs() - c.chronoStartedAt)}`;
     root.appendChild(meta);
   }
 
@@ -135,12 +135,12 @@ export function renderCard(root: HTMLElement, cfg: Config, ctx: CardContext): vo
   }
 
   if (c.buttonEnabled) {
-    const url = safeUrl(m?.available && c.mediaEnabled ? c.buttonUrl : c.buttonUrl);
+    const url = safeUrl(c.buttonUrl);
     if (url || !c.buttonUrl) {
       const btn = document.createElement("button");
       btn.className = "card-button";
       btn.type = "button";
-      btn.textContent = c.buttonText || "Ouvrir";
+      btn.textContent = c.buttonText || "Open";
       btn.addEventListener("click", async (e) => {
         e.stopPropagation();
         if (!url) return;
@@ -156,7 +156,7 @@ export function renderCard(root: HTMLElement, cfg: Config, ctx: CardContext): vo
   }
 }
 
-/** Éléments dynamiques présents ? (pour cadencer les re-rendus) */
+/** Any dynamic element present? (drives re-render pacing) */
 export function needsTicking(cfg: Config): boolean {
   const c = cfg.card;
   return (
