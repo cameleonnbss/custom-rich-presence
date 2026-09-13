@@ -2,8 +2,8 @@
 //! activity (Rich Presence). Direct implementation of the documented
 //! protocol, without heavyweight dependencies.
 //!
-//! Protocole : handshake (`{"v":1,"client_id":…}`), puis trames
-//! op:1 FRAME contenant SET_ACTIVITY avec nonce. Le pipe existe sous
+//! Protocol: handshake (`{"v":1,"client_id":…}`), then op:1 FRAME
+//! messages containing SET_ACTIVITY with a nonce. The pipe exists under
 //! several numbers (Discord, Discord Canary, Discord PTB).
 
 use serde_json::{json, Value};
@@ -12,7 +12,7 @@ use std::io::{Read, Write};
 #[cfg(windows)]
 use std::fs::OpenOptions;
 
-/// Connexion au premier pipe Discord disponible.
+/// Connects to the first available Discord pipe.
 #[cfg(windows)]
 fn connect_pipe() -> std::io::Result<std::fs::File> {
     for i in 0..10 {
@@ -36,7 +36,7 @@ fn connect_pipe() -> std::io::Result<std::fs::File> {
     ))
 }
 
-/// Renvoie le chemin du premier pipe Discord disponible.
+/// Returns the path of the first available Discord pipe.
 pub fn pipe_available() -> Result<String, String> {
     for i in 0..10 {
         let path = format!(r"\\.\pipe\discord-ipc-{i}");
@@ -58,12 +58,13 @@ fn write_frame(stream: &mut std::fs::File, op: u32, payload: &Value) -> std::io:
     stream.flush()
 }
 
-/// Lit une trame et renvoie (op, payload).
+/// Reads a frame; returns (op, payload).
 fn read_frame(stream: &mut std::fs::File) -> std::io::Result<(u32, Value)> {
     let mut header = [0u8; 8];
     stream.read_exact(&mut header)?;
     let op = u32::from_le_bytes([header[0], header[1], header[2], header[3]]);
     let len = u32::from_le_bytes([header[4], header[5], header[6], header[7]]) as usize;
+    let len = len.min(1024 * 1024); // sanity bound
     let mut body = vec![0u8; len];
     stream.read_exact(&mut body)?;
     let payload = serde_json::from_slice(&body).unwrap_or(Value::Null);
@@ -72,36 +73,52 @@ fn read_frame(stream: &mut std::fs::File) -> std::io::Result<(u32, Value)> {
 
 fn nonce() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
-    let t = SystemTime::now()
+    let n = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
-    format!("crp-{t}")
+    format!("crp-{n}")
 }
 
+/// Environment-provided client id fallback (`DISCORD_CLIENT_ID`).
 fn client_id_from_env() -> Option<String> {
-    std::env::var("CRP_DISCORD_CLIENT_ID").ok().filter(|s| !s.is_empty())
+    std::env::var("DISCORD_CLIENT_ID").ok().filter(|s| !s.trim().is_empty())
+}
+
+/// Reads the answer and returns Err on a Discord-side error event.
+fn check_error(resp: &Value, what: &str) -> Result<(), String> {
+    if resp.get("evt").and_then(Value::as_str) == Some("Error") {
+        return Err(format!(
+            "Discord rejected {what}: {}",
+            resp["data"]["message"].as_str().unwrap_or("unknown reason")
+        ));
+    }
+    Ok(())
 }
 
 /// Sends the activity to Discord. `client_id`: Discord application ID
 /// (the app provides its own ID when None/empty).
 ///
 /// Returns `Ok(descr)` on success (descr = readable message),
-/// `Err(message)` sinon — jamais de panique, l'envoi est best-effort.
+/// `Err(reason)` otherwise. Never panics.
 pub fn set_activity(
     client_id: &str,
     details: &str,
     state: &str,
     large_image: &str,
     large_text: &str,
+    small_image: &str,
     start_ms: Option<u64>,
     end_ms: Option<u64>,
+    button_label: &str,
+    button_url: &str,
 ) -> Result<String, String> {
     let id = if client_id.trim().is_empty() {
         client_id_from_env().ok_or("no Discord client_id configured".to_string())?
     } else {
         client_id.trim().to_string()
-    };    let mut stream = connect_pipe().map_err(|e| format!("connect: {e}"))?;
+    };
+    let mut stream = connect_pipe().map_err(|e| format!("connect: {e}"))?;
 
     write_frame(&mut stream, 0, &json!({ "v": 1, "client_id": id }))
         .map_err(|e| format!("handshake: {e}"))?;
@@ -134,8 +151,14 @@ pub fn set_activity(
     if !large_text.is_empty() {
         assets["large_text"] = json!(large_text);
     }
+    if !small_image.is_empty() {
+        assets["small_image"] = json!(small_image);
+    }
     if assets.as_object().map(|o| !o.is_empty()).unwrap_or(false) {
         activity["assets"] = assets;
+    }
+    if !button_label.is_empty() && !button_url.is_empty() {
+        activity["buttons"] = json!([{ "label": button_label, "url": button_url }]);
     }
 
     let frame = json!({
@@ -145,12 +168,7 @@ pub fn set_activity(
     });
     write_frame(&mut stream, 1, &frame).map_err(|e| format!("send: {e}"))?;
     let (_, resp) = read_frame(&mut stream).map_err(|e| format!("read response: {e}"))?;
-    if resp.get("evt").and_then(Value::as_str) == Some("Error") {
-        return Err(format!(
-            "Discord rejected the activity: {}",
-            resp["data"]["message"].as_str().unwrap_or("unknown reason")
-        ));
-    }
+    check_error(&resp, "the activity")?;
     Ok("activity updated".to_string())
 }
 
@@ -172,8 +190,28 @@ pub fn clear_activity(client_id: &str) -> Result<String, String> {
     });
     write_frame(&mut stream, 1, &frame).map_err(|e| format!("send: {e}"))?;
     let (_, resp) = read_frame(&mut stream).map_err(|e| format!("read response: {e}"))?;
-    if resp.get("evt").and_then(Value::as_str) == Some("Error") {
-        return Err("Discord rejected the clear".into());
-    }
+    check_error(&resp, "the clear")?;
     Ok("activity cleared".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn nonce_is_prefixed_and_unique_enough() {
+        let a = nonce();
+        let b = nonce();
+        assert!(a.starts_with("crp-") && b.starts_with("crp-"));
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn check_error_passes_non_error_events() {
+        let ok = serde_json::json!({ "evt": null, "data": {} });
+        assert!(check_error(&ok, "x").is_ok());
+        let bad = serde_json::json!({ "evt": "Error", "data": { "message": "nope" } });
+        let err = check_error(&bad, "x").unwrap_err();
+        assert!(err.contains("nope"));
+    }
 }

@@ -1,116 +1,73 @@
-# Custom Rich Presence
+# Discord Presence
 
-A small Windows utility that displays a **floating presence panel** on your desktop:
-image, title, subtitle, free text, button with link, chronometer, progress bar,
-Windows media playback or a YouTube video — fully configurable. It can also mirror
-the card as a **Discord Rich Presence** status.
+Automatic **Discord Rich Presence** for Windows, in a single lightweight `.exe`.
+Listen to a song on Spotify, play Minecraft — your Discord status updates by itself.
 
-![stack](https://img.shields.io/badge/stack-Tauri_2%20%2B%20TypeScript-blue)
+![stack](https://img.shields.io/badge/stack-Tauri_2%20%2B%20Rust-blue)
 
-## Features
+## What it does
 
-- **Floating panel**, independent from the editor: optional always-on-top, drag to move,
-  resize handle, position lock (`Ctrl+Alt+P` on the panel), opacity, remembered position,
-  snap to any corner, multi-monitor aware.
-- **Editor** with a live preview (changes appear immediately, rendered by the same
-  component as the overlay).
-- **Elements**: image, title, subtitle, free text, button + link, chronometer,
-  progress bar, date/time — each can be toggled independently.
-- **Windows media**: reads metadata from *any* compatible app through the native
-  SMTC API (title, artist, album, cover art, position, duration, play state,
-  source app). No media detected → the card simply keeps its static content, no error.
-- **YouTube**: paste a URL, the thumbnail and title are fetched through the public
-  oEmbed endpoint (no API key); the thumbnail is cached locally for offline display.
-  The architecture allows adding a dedicated API later (`src-tauri/src/youtube.rs`).
-- **Discord Rich Presence**: the card is mirrored as a Discord status through
-  Discord's local IPC (named pipe, no server). Title, subtitle, chronometer
-  (timestamps) and the associated Discord app image. Requires a Discord
-  application ID (see below) and Discord running.
-- **Presets**: Minimal, Media, Gaming, YouTube, Custom — available from the editor
-  or the tray menu.
-- **System tray**: left click = show/hide the panel, right click = menu
-  (Show, Hide, Edit, Presets, Settings, Quit).
-- **Launch at Windows startup**: toggleable in Settings.
-- **Local storage**: `%APPDATA%\CustomRichPresence\config.json` (atomic writes).
-  No server connection; everything works offline except optional YouTube fetches.
+- **Windows media (SMTC)** — mirrors whatever any app exposes through Windows media
+  controls: Spotify, browsers, media players. Title, artist, album, cover art,
+  playback position, remaining-time countdown, play/pause state.
+- **Game detection** — recognizes running games by their window title
+  (Minecraft, Roblox, Fortnite, VALORANT, League of Legends, Cyberpunk 2077,
+  Elden Ring, and many more — the watchlist lives in `src-tauri/src/game.rs`).
+- **Custom presence** — static fallback text, elapsed timer, large/small image keys
+  and a clickable button, for when nothing is detected.
+- **Live Discord-style preview** — the settings window shows a pixel-close Discord
+  profile card of what your status looks like at any moment.
+- **Modern UI** — dark frosted-glass panels over a soft color-field backdrop,
+  ambient particles (adjustable), monochrome pictograms, no emoji, Discord accent.
+
+## Setup (once)
+
+1. Create an application on [discord.com/developers](https://discord.com/developers/applications)
+   — a single "New Application" click is enough.
+2. Copy the **Application ID** into the app: Settings > Discord Rich Presence.
+3. Optional: upload an image named `app-icon` under *Rich Presence > Art Assets*
+   (512×512 recommended) — it becomes the large image on your status.
+4. Enable **Rich Presence** and keep Discord running. That's it.
+
+The connection uses Discord's official local IPC (named pipe). Nothing transits
+over the Internet beyond what Discord itself displays. If Discord is closed,
+the app keeps running and retries quietly.
 
 ## Build
 
 Prerequisites: [Node.js 18+](https://nodejs.org), [Rust stable](https://rustup.rs)
-with the `x86_64-pc-windows-msvc` target, and the Windows build tools
-(VS Build Tools with the Windows SDK).
+with the `x86_64-pc-windows-msvc` target, and VS Build Tools with the Windows SDK.
 
 ```powershell
 npm install
-npm test           # TypeScript tests (vitest)
-npm run icons      # regenerate icons from assets/icon.png
+npm test           # frontend tests (vitest)
 npm run tauri:build
 ```
 
-Rust unit tests:
+Rust tests:
 
 ```powershell
 cd src-tauri
 cargo test
 ```
 
-The NSIS installer and the executable are produced under
-`src-tauri/target/release/bundle/`. With the MSVC toolchain the exe is
-statically linked against WebView2Loader and runs fully standalone.
+Artifacts are produced under `src-tauri/target/release/bundle/nsis/` (installer)
+and `src-tauri/target/release/` (portable exe, statically linked WebView2Loader).
 
-If the Windows username contains non-ASCII characters **and** only the GNU
-Rust toolchain is available, use `powershell -File scripts/build.ps1`, which
-redirects the build to an ASCII path. With the standard MSVC toolchain,
-`npm run tauri:build` works as-is.
+## Architecture
 
-### Development
-
-```powershell
-npm run tauri:dev
-```
-
-## Discord Rich Presence
-
-1. Create an application on [discord.com/developers](https://discord.com/developers/applications)
-   (a single "New Application" click is enough — the "description" field becomes
-   the caption of the status).
-2. Copy the **Application ID** and paste it in Settings > Discord Rich Presence.
-3. Optional: under "Rich Presence > Art Assets", upload an image named `app-icon`
-   (it is displayed next to the status).
-4. Enable Discord Rich Presence, start Discord, show the panel.
-
-The connection uses Discord's official IPC protocol (local named pipe): nothing
-transits over the Internet beyond what Discord already displays. If Discord is
-closed, the app keeps working and retries periodically, without blocking errors.
-
-## Custom icon
-
-Simply replace `assets/icon.png` with your icon (square, 512×512 recommended),
-then run:
-
-```powershell
-npm run icons      # derives icons for the window, taskbar, tray and installer
-npm run tauri:build
-```
-
-The derived files are regenerated in `src-tauri/icons/` (`.ico`, multiple PNGs):
-executable, window, tray and shortcut icons.
-
-## Integrations
-
-The system is modular:
-
-- `src-tauri/src/media.rs` — SMTC reader (any compatible Windows app).
-- `src-tauri/src/youtube.rs` — YouTube mode (oEmbed today, dedicated API tomorrow).
-- `src-tauri/src/presets.rs` — presets.
-- `src-tauri/src/discord.rs` + `discord_worker.rs` — Discord IPC client and push loop.
-
-Adding an integration = one module + one Tauri command + one panel in the editor
-(`src/editor.ts`).
+- `src-tauri/src/discord.rs` — Discord IPC client (handshake, SET_ACTIVITY, buttons).
+- `src-tauri/src/discord_worker.rs` — push loop: change detection, panic guards,
+  bounded timeouts, emits live state to the UI.
+- `src-tauri/src/media.rs` — SMTC reader (native Windows API, never panics).
+- `src-tauri/src/game.rs` — window-title game detection with a curated watchlist.
+- `src-tauri/src/config.rs` — atomic JSON persistence in
+  `%APPDATA%\CustomRichPresence\config.json`.
+- `src/app.ts` + `src/preview.ts` — settings UI and Discord-profile preview.
 
 ## Notes
 
-- Emoji-free interface: inline monochrome SVG pictograms (`src/icons.ts`).
-- The panel consumes very few resources: no active timer as long as no dynamic
-  element (chronometer, clock, media progress) is displayed; media polling only
-  runs while "follow playback" is enabled.
+- The worker only pushes to Discord when something actually changed.
+- Media polling runs on a configurable interval (2–30 s) and is skipped entirely
+  when media follow is disabled.
+- Configuration is local-only. No account, no server, no telemetry.

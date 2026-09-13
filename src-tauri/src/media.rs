@@ -51,13 +51,13 @@ fn now_unix_ms() -> u64 {
 }
 
 fn datetime_to_unix_ms(universal_time: i64) -> u64 {
-    // Ticks 100 ns depuis 1601-01-01 → ms depuis 1970-01-01.
+    // .NET ticks (100 ns) since 0001-01-01 -> Unix ms.
     let ms = universal_time / 10_000 - 11_644_473_600_000;
     if ms < 0 { 0 } else { ms as u64 }
 }
 
 /// Entry point called from a blocking thread: never panic,
-/// renvoyer simplement un statut indisponible en cas d'erreur.
+/// returns an unavailable status on any error.
 pub fn read_smtc_blocking() -> MediaStatus {
     read_smtc_inner().unwrap_or_else(|_| MediaStatus::unavailable())
 }
@@ -133,7 +133,7 @@ fn read_smtc_inner() -> windows::core::Result<MediaStatus> {
     })
 }
 
-/// Lit un flux WinRT (pochette) et le convertit en data URL base64.
+/// Reads a WinRT stream (cover art) and converts it to a base64 data URL.
 fn stream_to_data_url(
     reference: &windows::Storage::Streams::IRandomAccessStreamReference,
 ) -> windows::core::Result<String> {

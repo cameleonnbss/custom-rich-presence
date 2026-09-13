@@ -1,47 +1,16 @@
-export interface CardConfig {
-  preset: string;
-  imageEnabled: boolean;
-  imageData: string;
-  titleEnabled: boolean;
-  title: string;
-  subtitleEnabled: boolean;
-  subtitle: string;
-  bodyEnabled: boolean;
-  body: string;
-  buttonEnabled: boolean;
-  buttonText: string;
-  buttonUrl: string;
-  chronoEnabled: boolean;
-  chronoStartedAt: number;
-  progressEnabled: boolean;
-  progressValue: number;
-  progressMax: number;
-  datetimeEnabled: boolean;
+export interface PresenceConfig {
   mediaEnabled: boolean;
-  /** Epoch ms: auto-hide after this date (0 = permanent) */
-  displayUntil: number;
-}
-
-export interface AppearanceConfig {
-  width: number;
-  height: number;
-  cornerRadius: number;
-  opacity: number;
-  fontScale: number;
-  spacing: number;
-  fontFamily: string;
-  animIn: string;
-  animOut: string;
-  animDuration: number;
-  borderless: boolean;
-  alwaysOnTop: boolean;
-}
-
-export interface OverlayConfig {
-  x: number;
-  y: number;
-  locked: boolean;
-  visible: boolean;
+  gameEnabled: boolean;
+  fallbackDetails: string;
+  fallbackState: string;
+  showElapsed: boolean;
+  largeImage: string;
+  largeText: string;
+  smallImage: string;
+  verb: string;
+  buttonEnabled: boolean;
+  buttonLabel: string;
+  buttonUrl: string;
 }
 
 export interface DiscordConfig {
@@ -49,11 +18,17 @@ export interface DiscordConfig {
   clientId: string;
 }
 
+export interface UiConfig {
+  particles: number;
+  glass: number;
+  pollIntervalSecs: number;
+}
+
 export interface Config {
-  card: CardConfig;
-  appearance: AppearanceConfig;
-  overlay: OverlayConfig;
+  presence: PresenceConfig;
   discord: DiscordConfig;
+  ui: UiConfig;
+  startedAt: number;
 }
 
 export interface MediaStatus {
@@ -68,52 +43,37 @@ export interface MediaStatus {
   coverDataUrl: string;
 }
 
-export interface YoutubeInfo {
-  videoId: string;
-  title: string | null;
-  author: string | null;
-  thumbnailUrl: string;
+export interface GameStatus {
+  available: boolean;
+  name: string;
+  process: string;
 }
 
 export function defaultConfig(): Config {
   return {
-    card: {
-      preset: "custom",
-      imageEnabled: false,
-      imageData: "",
-      titleEnabled: true,
-      title: "My presence",
-      subtitleEnabled: true,
-      subtitle: "Subtitle",
-      bodyEnabled: false,
-      body: "",
+    presence: {
+      mediaEnabled: true,
+      gameEnabled: true,
+      fallbackDetails: "Custom Rich Presence",
+      fallbackState: "",
+      showElapsed: true,
+      largeImage: "app-icon",
+      largeText: "",
+      smallImage: "",
+      verb: "Listening",
       buttonEnabled: false,
-      buttonText: "Open",
-      buttonUrl: "",
-      chronoEnabled: false,
-      chronoStartedAt: 0,
-      progressEnabled: false,
-      progressValue: 0,
-      progressMax: 100,
-      datetimeEnabled: false,
-      mediaEnabled: false,
-      displayUntil: 0
+      buttonLabel: "Open",
+      buttonUrl: ""
     },
-    appearance: {
-      width: 340,
-      height: 240,
-      cornerRadius: 14,
-      opacity: 0.95,
-      fontScale: 1,
-      spacing: 16,
-      fontFamily: "Segoe UI Variable",
-      animIn: "fade",
-      animOut: "fade",
-      animDuration: 220,
-      borderless: false,
-      alwaysOnTop: true
-    },
-    overlay: { x: 0, y: 0, locked: false, visible: false },
-    discord: { enabled: false, clientId: "" }
+    discord: { enabled: false, clientId: "" },
+    ui: { particles: 42, glass: 0.55, pollIntervalSecs: 5 },
+    startedAt: 0
   };
+}
+
+export function fmtClock(ms: number): string {
+  const total = Math.floor(ms / 1000);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
