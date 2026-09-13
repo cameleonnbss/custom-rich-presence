@@ -353,6 +353,68 @@ input[type="range"] { accent-color: var(--accent); height: 20px; }
 .about-list .row { display: flex; justify-content: space-between; gap: 12px; }
 .about-list .k { color: var(--text-faint); }
 
+/* ===== Type-first layout ===== */
+
+.type-grid {
+  max-width: 940px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(420px, 1fr) 330px;
+  gap: 26px;
+  align-items: start;
+}
+.panel.hero h1 { font-size: 21px; margin-bottom: 6px; }
+.panel.hero .hint { margin-bottom: 14px; }
+.panel.hero .field textarea { font-size: 15px; min-height: 92px; }
+.panel.hero .field input { font-size: 14px; }
+.panel.hero .btn-row { align-items: center; }
+.panel.hero select {
+  background: rgba(16, 18, 23, 0.55);
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  padding: 9px 11px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  outline: none;
+}
+.pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+
+details.setup, details + .panel, .content details {
+  margin-top: 18px;
+}
+.content details {
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  backdrop-filter: blur(22px) saturate(1.15);
+  overflow: hidden;
+}
+.content details summary {
+  padding: 13px 18px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+.content details summary::-webkit-details-marker { display: none; }
+.content details summary::before { content: "› "; color: var(--text-faint); }
+.content details[open] summary::before { content: "⌄ "; }
+.content details summary:hover { color: var(--text); }
+.content details .panel {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.content details[open] > .panel { padding-top: 4px; }
+.content details .panel + .panel { border-top: 1px solid var(--line); }
+.steps { padding-left: 20px; display: flex; flex-direction: column; gap: 7px; font-size: 12.5px; color: var(--text-dim); line-height: 1.5; }
+.steps a { color: #9fa8ff; text-decoration: none; }
+.steps a:hover { text-decoration: underline; }
+
 ::-webkit-scrollbar { width: 10px; }
 ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.13); border-radius: 5px; border: 2px solid transparent; background-clip: content-box; }
 ::-webkit-scrollbar-track { background: transparent; }

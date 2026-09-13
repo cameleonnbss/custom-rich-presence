@@ -1,6 +1,7 @@
 export interface PresenceConfig {
   mediaEnabled: boolean;
   gameEnabled: boolean;
+  textOnly: boolean;
   fallbackDetails: string;
   fallbackState: string;
   showElapsed: boolean;
@@ -24,13 +25,6 @@ export interface UiConfig {
   pollIntervalSecs: number;
 }
 
-export interface Config {
-  presence: PresenceConfig;
-  discord: DiscordConfig;
-  ui: UiConfig;
-  startedAt: number;
-}
-
 export interface MediaStatus {
   available: boolean;
   title: string;
@@ -49,23 +43,31 @@ export interface GameStatus {
   process: string;
 }
 
+export interface Config {
+  presence: PresenceConfig;
+  discord: DiscordConfig;
+  ui: UiConfig;
+  startedAt: number;
+}
+
 export function defaultConfig(): Config {
   return {
     presence: {
-      mediaEnabled: true,
-      gameEnabled: true,
-      fallbackDetails: "Custom Rich Presence",
+      mediaEnabled: false,
+      gameEnabled: false,
+      textOnly: true,
+      fallbackDetails: "",
       fallbackState: "",
-      showElapsed: true,
+      showElapsed: false,
       largeImage: "app-icon",
       largeText: "",
       smallImage: "",
-      verb: "Listening",
+      verb: "Playing",
       buttonEnabled: false,
       buttonLabel: "Open",
       buttonUrl: ""
     },
-    discord: { enabled: false, clientId: "" },
+    discord: { enabled: true, clientId: "" },
     ui: { particles: 42, glass: 0.55, pollIntervalSecs: 5 },
     startedAt: 0
   };

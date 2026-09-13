@@ -72,6 +72,13 @@ enum Payload {
 /// Reads the config and probes the system to decide what to display.
 fn decide(cfg: &Config) -> Payload {
     let p = &cfg.presence;
+    // Text-only mode: the typed text IS the status, skip all detection.
+    if p.text_only {
+        if !p.fallback_details.trim().is_empty() || !p.fallback_state.trim().is_empty() {
+            return Payload::Custom;
+        }
+        return Payload::Clear;
+    }
     if p.media_enabled {
         let media = media::read_smtc_blocking();
         if media.available && !media.title.is_empty() {
@@ -154,7 +161,10 @@ fn compose(cfg: &Config, payload: &Payload) -> (String, String, Option<u64>, Opt
 fn push_once(app: &AppHandle) {
     let Some(state) = app.try_state::<AppState>() else { return };
     let snapshot: Config = state.config.lock().unwrap().clone();
-    let enabled = snapshot.discord.enabled;
+    // Auto-enable Discord as soon as there is anything to display.
+    let enabled = snapshot.discord.enabled
+        || !snapshot.presence.fallback_details.trim().is_empty()
+        || !snapshot.presence.fallback_state.trim().is_empty();
 
     let payload = decide(&snapshot);
     let (details, state_text, start_ms, end_ms, large_text) = compose(&snapshot, &payload);

@@ -10,11 +10,11 @@ describe("fmtClock", () => {
 });
 
 describe("defaultConfig", () => {
-  it("starts with Discord disabled and detection on", () => {
+  it("starts in text-only mode with detection off", () => {
     const cfg = defaultConfig();
-    expect(cfg.discord.enabled).toBe(false);
-    expect(cfg.presence.mediaEnabled).toBe(true);
-    expect(cfg.presence.gameEnabled).toBe(true);
+    expect(cfg.presence.textOnly).toBe(true);
+    expect(cfg.presence.mediaEnabled).toBe(false);
+    expect(cfg.presence.gameEnabled).toBe(false);
   });
 
   it("is JSON round-trippable", () => {

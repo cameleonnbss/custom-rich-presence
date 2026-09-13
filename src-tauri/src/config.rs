@@ -14,7 +14,9 @@ pub struct PresenceConfig {
     pub media_enabled: bool,
     /// Prefer a detected game / running process name when available.
     pub game_enabled: bool,
-    /// Static fallback texts when nothing is detected.
+    /// Text-only mode: the custom text IS the status, nothing is detected.
+    pub text_only: bool,
+    /// Static text when nothing is detected (or always in text-only mode).
     pub fallback_details: String,
     pub fallback_state: String,
     /// Show elapsed time since the app started (custom presence).
@@ -35,15 +37,16 @@ pub struct PresenceConfig {
 impl Default for PresenceConfig {
     fn default() -> Self {
         Self {
-            media_enabled: true,
-            game_enabled: true,
-            fallback_details: "Custom Rich Presence".into(),
+            media_enabled: false,
+            game_enabled: false,
+            text_only: true,
+            fallback_details: String::new(),
             fallback_state: String::new(),
-            show_elapsed: true,
+            show_elapsed: false,
             large_image: "app-icon".into(),
             large_text: String::new(),
             small_image: String::new(),
-            verb: "Listening".into(),
+            verb: "Playing".into(),
             button_enabled: false,
             button_label: "Open".into(),
             button_url: String::new(),
@@ -175,8 +178,8 @@ mod tests {
     #[test]
     fn partial_json_uses_defaults() {
         let parsed: Config = serde_json::from_str("{}").unwrap();
-        assert!(parsed.presence.media_enabled);
-        assert!(!parsed.discord.enabled);
+        assert!(parsed.presence.text_only);
+        assert!(!parsed.presence.media_enabled);
     }
 
     #[test]

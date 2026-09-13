@@ -9,6 +9,7 @@ let media: MediaStatus | null = null;
 let game: GameStatus | null = null;
 let dirty = false;
 let saveTimer: number | null = null;
+let clearTimer: number | null = null;
 
 const root = document.getElementById("root")!;
 
@@ -26,12 +27,10 @@ root.innerHTML = `
       <button id="tb-close" class="close" title="Close">${icons.close}</button>
     </div>
     <div class="app-shell">
-      <nav class="sidebar" id="sidebar"></nav>
       <main class="content" id="content"></main>
     </div>
   </div>`;
 
-const sidebar = root.querySelector("#sidebar") as HTMLElement;
 const content = root.querySelector("#content") as HTMLElement;
 
 (root.querySelector("#tb-min") as HTMLElement).addEventListener("click", async () => {
@@ -47,66 +46,24 @@ const content = root.querySelector("#content") as HTMLElement;
   void getCurrentWindow().hide();
 });
 
-/* ---------- Navigation ---------- */
+/* ---------- Persistence ---------- */
 
-type Section = "status" | "presence" | "detection" | "appearance" | "settings";
-
-const NAV: Array<{ title: string; items: Array<{ id: Section; label: string; icon: string }> }> = [
-  {
-    title: "Presence",
-    items: [
-      { id: "status", label: "Status", icon: icons.status },
-      { id: "presence", label: "Content", icon: icons.presence },
-      { id: "detection", label: "Detection", icon: icons.game }
-    ]
-  },
-  {
-    title: "Personalize",
-    items: [
-      { id: "appearance", label: "Appearance", icon: icons.sparkle }
-    ]
-  },
-  {
-    title: "Application",
-    items: [
-      { id: "settings", label: "Settings", icon: icons.settings }
-    ]
-  }
-];
-
-let current: Section = "status";
-const panes = new Map<Section, HTMLElement>();
-const navButtons = new Map<Section, HTMLButtonElement>();
-
-for (const group of NAV) {
-  const header = document.createElement("div");
-  header.className = "nav-header";
-  header.textContent = group.title;
-  sidebar.appendChild(header);
-  for (const item of group.items) {
-    const b = document.createElement("button");
-    b.className = "nav-item";
-    b.innerHTML = `${item.icon}<span>${item.label}</span>`;
-    b.addEventListener("click", () => navigate(item.id));
-    navButtons.set(item.id, b);
-    sidebar.appendChild(b);
+function markDirty(): void {
+  dirty = true;
+  if (saveTimer !== null) window.clearTimeout(saveTimer);
+  saveTimer = window.setTimeout(() => void persist(), 350);
+}
+async function persist(): Promise<void> {
+  if (!dirty) return;
+  dirty = false;
+  try {
+    await saveConfig(structuredClone(cfg));
+  } catch (e) {
+    console.error("failed to save", e);
   }
 }
-const gap = document.createElement("div");
-gap.className = "nav-gap";
-sidebar.appendChild(gap);
-const ver = document.createElement("div");
-ver.className = "nav-version";
-ver.textContent = "v0.4.0";
-sidebar.appendChild(ver);
 
-function navigate(section: Section): void {
-  current = section;
-  for (const [id, b] of navButtons) b.classList.toggle("active", id === section);
-  for (const [id, p] of panes) p.classList.toggle("active", id === section);
-}
-
-/* ---------- Form helpers ---------- */
+/* ---------- Helpers ---------- */
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -114,38 +71,11 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, t
   if (text !== undefined) e.textContent = text;
   return e;
 }
-function panel(parent: HTMLElement, title: string): HTMLDivElement {
+function panel(parent: HTMLElement, title?: string): HTMLDivElement {
   const p = el("div", "panel");
-  p.appendChild(el("h2", undefined, title));
+  if (title) p.appendChild(el("h2", undefined, title));
   parent.appendChild(p);
   return p;
-}
-function pane(id: Section, title: string, sub: string, withPreview: boolean): HTMLDivElement {
-  const p = el("div", withPreview ? "pane" : "pane single");
-  const left = el("div");
-  left.appendChild(el("h1", undefined, title));
-  left.appendChild(el("p", "sub", sub));
-  p.appendChild(left);
-  const right = el("div");
-  p.appendChild(right);
-  p.dataset.previewHost = withPreview ? "1" : "";
-  panes.set(id, p);
-  content.appendChild(p);
-  return p;
-}
-function field(label: string, control: HTMLElement): HTMLDivElement {
-  const f = el("div", "field");
-  f.appendChild(el("label", undefined, label));
-  f.appendChild(control);
-  return f;
-}
-function textInput(value: string, on: (v: string) => void, placeholder?: string): HTMLInputElement {
-  const i = document.createElement("input");
-  i.type = "text";
-  i.value = value;
-  if (placeholder) i.placeholder = placeholder;
-  i.addEventListener("input", () => on(i.value));
-  return i;
 }
 function toggleRow(label: string, checked: boolean, on: (v: boolean) => void): HTMLDivElement {
   const row = el("div", "toggle-row");
@@ -160,285 +90,236 @@ function toggleRow(label: string, checked: boolean, on: (v: boolean) => void): H
   row.appendChild(sw);
   return row;
 }
-function rangeRow(label: string, min: number, max: number, step: number, value: number, on: (v: number) => void, fmt: (v: number) => string): HTMLDivElement {
-  const f = el("div", "field");
-  f.appendChild(el("label", undefined, label));
-  const row = el("div", "range-row");
-  const r = document.createElement("input");
-  r.type = "range";
-  r.min = String(min); r.max = String(max); r.step = String(step); r.value = String(value);
-  const val = el("span", "val", fmt(value));
-  r.addEventListener("input", () => { val.textContent = fmt(Number(r.value)); on(Number(r.value)); });
-  row.append(r, val);
-  f.appendChild(row);
-  return f;
-}
 function button(label: string, on: () => void, primary = false): HTMLButtonElement {
   const b = el("button", primary ? "btn primary" : "btn", label);
   b.addEventListener("click", on);
   return b;
 }
-
-/* ---------- Persistence + preview ---------- */
-
-function markDirty(): void {
-  dirty = true;
-  if (saveTimer !== null) window.clearTimeout(saveTimer);
-  saveTimer = window.setTimeout(() => void persist(), 400);
+function details(parent: HTMLElement, summary: string): HTMLDetailsElement {
+  const d = document.createElement("details");
+  const s = document.createElement("summary");
+  s.textContent = summary;
+  d.appendChild(s);
+  parent.appendChild(d);
+  return d;
 }
-async function persist(): Promise<void> {
-  if (!dirty) return;
-  dirty = false;
-  try {
-    await saveConfig(structuredClone(cfg));
-  } catch (e) {
-    console.error("failed to save", e);
+
+/* ---------- Main layout: type-first ---------- */
+
+const grid = el("div", "type-grid");
+content.appendChild(grid);
+const left = el("div", "type-left");
+const right = el("div", "type-right");
+grid.append(left, right);
+
+/* -- The big input -- */
+
+const hero = panel(left);
+hero.classList.add("hero");
+hero.appendChild(el("h1", undefined, "Type it. See it on Discord."));
+const hint = el("p", "hint", "Your text becomes your Discord status live. Nothing else to do.");
+hero.appendChild(hint);
+
+const stateLabel = el("label", undefined, "Second line (optional)");
+const stateInput = document.createElement("input");
+stateInput.type = "text";
+stateInput.placeholder = "e.g. chilling, working, gaming…";
+stateInput.value = cfg.presence.fallbackState;
+const stateField = el("div", "field");
+stateField.append(stateLabel, stateInput);
+hero.appendChild(stateField);
+
+const mainLabel = el("label", undefined, "Status text");
+const mainInput = document.createElement("textarea");
+mainInput.rows = 3;
+mainInput.placeholder = "What should Discord show?";
+mainInput.value = cfg.presence.fallbackDetails;
+const mainField = el("div", "field");
+mainField.append(mainLabel, mainInput);
+hero.appendChild(mainField);
+
+const actions = el("div", "btn-row");
+const clearBtn = button("Clear status", () => {
+  mainInput.value = "";
+  stateInput.value = "";
+  cfg.presence.fallbackDetails = "";
+  cfg.presence.fallbackState = "";
+  markDirty();
+  refreshPreview();
+});
+const timerSel = document.createElement("select");
+timerSel.innerHTML = `
+  <option value="0">Stay until I change it</option>
+  <option value="15">Clear after 15 min</option>
+  <option value="30">Clear after 30 min</option>
+  <option value="60">Clear after 1 h</option>
+  <option value="120">Clear after 2 h</option>`;
+timerSel.addEventListener("change", () => {
+  const mins = Number(timerSel.value);
+  if (clearTimer !== null) { window.clearTimeout(clearTimer); clearTimer = null; }
+  if (mins > 0) {
+    clearTimer = window.setTimeout(() => {
+      cfg.presence.fallbackDetails = "";
+      cfg.presence.fallbackState = "";
+      mainInput.value = "";
+      stateInput.value = "";
+      markDirty();
+      refreshPreview();
+    }, mins * 60_000);
+  }
+});
+actions.append(clearBtn, timerSel);
+hero.appendChild(actions);
+
+mainInput.addEventListener("input", () => {
+  cfg.presence.fallbackDetails = mainInput.value;
+  markDirty();
+  refreshPreview();
+});
+stateInput.addEventListener("input", () => {
+  cfg.presence.fallbackState = stateInput.value;
+  markDirty();
+  refreshPreview();
+});
+
+/* -- Live Discord preview -- */
+
+const previewWrap = panel(right, "Live on your Discord");
+const previewEl = el("div");
+previewWrap.appendChild(previewEl);
+const pills = el("div", "pill-row");
+right.appendChild(pills);
+
+function refreshPreview(): void {
+  renderPreview(previewEl, cfg, { media, game });
+}
+
+/* -- One-time ID setup (collapsed once done) -- */
+
+const setup = details(left, "One-time setup — connect Discord");
+setup.classList.add("setup");
+const setupPanel = panel(setup);
+setupPanel.appendChild(el("p", "hint",
+  "Discord needs an application ID to display a custom status (30 seconds, once, kept forever):"));
+const steps = el("ol", "steps");
+steps.innerHTML = `
+  <li>Open <a href="#" id="dev-portal">discord.com/developers</a> and click <b>New Application</b></li>
+  <li>Copy the <b>Application ID</b> shown on the General page</li>
+  <li>Paste it below</li>`;
+setupPanel.appendChild(steps);
+const idInput = document.createElement("input");
+idInput.type = "text";
+idInput.placeholder = "Application ID (numbers only)";
+idInput.value = cfg.discord.clientId;
+setupPanel.appendChild(idInput);
+const idStatus = el("div", "hint", cfg.discord.clientId ? "Saved. You're connected." : "");
+setupPanel.appendChild(idStatus);
+idInput.addEventListener("input", () => {
+  cfg.discord.clientId = idInput.value.trim();
+  cfg.discord.enabled = idInput.value.trim().length > 0;
+  markDirty();
+  refreshPreview();
+  void updateSetupStatus();
+});
+setupPanel.appendChild(button("Check Discord is running", () => {
+  void getDiscordStatus()
+    .then(pipe => { idStatus.textContent = `Discord detected (${pipe}) — you're good.`; })
+    .catch(() => { idStatus.textContent = "Discord not detected — start the Discord app first."; });
+}));
+
+async function updateSetupStatus(): Promise<void> {
+  if (cfg.discord.clientId) {
+    setup.open = false;
+    hint.textContent = "Your text becomes your Discord status live.";
+  } else {
+    setup.open = true;
+    hint.textContent = "Complete the one-time setup below, then type — it shows up on Discord.";
   }
 }
 
-let previewEl: HTMLElement | null = null;
-function redraw(): void {
-  if (previewEl) renderPreview(previewEl, cfg, { media, game });
-}
+(root.querySelector("#dev-portal") as HTMLAnchorElement | null)?.addEventListener("click", async (e) => {
+  e.preventDefault();
+  const { openUrl } = await import("@tauri-apps/plugin-opener");
+  void openUrl("https://discord.com/developers/applications");
+});
 
-async function refreshDetect(): Promise<void> {
-  try { media = await getMediaStatus(); } catch { media = null; }
-  try { game = await getGameStatus(); } catch { game = null; }
-  redraw();
-  renderStatus();
-}
+/* -- Advanced (collapsed): auto detection + looks -- */
 
-/* ---------- Panes ---------- */
+const advanced = details(left, "Advanced — music & game detection, button, timer");
+const advDetect = panel(advanced, "Automatic detection");
+advDetect.appendChild(toggleRow("Show the music I'm listening to", cfg.presence.mediaEnabled, v => { cfg.presence.mediaEnabled = v; markDirty(); }));
+advDetect.appendChild(toggleRow("Show the game I'm playing", cfg.presence.gameEnabled, v => { cfg.presence.gameEnabled = v; markDirty(); }));
+advDetect.appendChild(toggleRow("Text only — never auto-detect", cfg.presence.textOnly, v => { cfg.presence.textOnly = v; markDirty(); }));
 
-function pill(kind: "ok" | "bad" | "warn" | "", text: string): HTMLDivElement {
+const advShow = panel(advanced, "Status extras");
+advShow.appendChild(toggleRow("Show elapsed time", cfg.presence.showElapsed, v => { cfg.presence.showElapsed = v; markDirty(); refreshPreview(); }));
+advShow.appendChild(toggleRow("Add a button", cfg.presence.buttonEnabled, v => { cfg.presence.buttonEnabled = v; markDirty(); }));
+const btnLabel = document.createElement("input");
+btnLabel.type = "text";
+btnLabel.placeholder = "Button label";
+btnLabel.value = cfg.presence.buttonLabel;
+btnLabel.addEventListener("input", () => { cfg.presence.buttonLabel = btnLabel.value; markDirty(); });
+const btnUrl = document.createElement("input");
+btnUrl.type = "text";
+btnUrl.placeholder = "https://link";
+btnUrl.value = cfg.presence.buttonUrl;
+btnUrl.addEventListener("input", () => { cfg.presence.buttonUrl = btnUrl.value; markDirty(); });
+advShow.appendChild(btnLabel);
+advShow.appendChild(btnUrl);
+
+const advUi = panel(advanced, "This window");
+const partRow = el("div", "toggle-row");
+partRow.appendChild(el("span", undefined, "Background particles"));
+const partInput = document.createElement("input");
+partInput.type = "range";
+partInput.min = "0"; partInput.max = "100"; partInput.step = "2";
+partInput.value = String(cfg.ui.particles);
+partInput.addEventListener("change", () => { cfg.ui.particles = Number(partInput.value); markDirty(); });
+partRow.appendChild(partInput);
+advUi.appendChild(partRow);
+advUi.appendChild(button("Open data folder", () => void openDataFolder()));
+advUi.appendChild(button("Quit completely", () => void quitApp(), true));
+
+/* ---------- Status pills ---------- */
+
+function pill(kind: "ok" | "bad" | "", text: string): HTMLDivElement {
   const p = el("div", `pill ${kind}`);
   p.appendChild(el("span", "dot"));
   p.appendChild(el("span", undefined, text));
   return p;
 }
+let discordPill = pill("", "checking…");
 
-let discordPill: HTMLDivElement | null = null;
-let mediaPill: HTMLDivElement | null = null;
-let gamePill: HTMLDivElement | null = null;
-let nowCard: HTMLElement | null = null;
-
-function buildStatus(): void {
-  const p = pane("status", "Status", "What Discord sees right now. Detection updates automatically.", true);
-  const left = p.firstElementChild as HTMLElement;
-  previewEl = p.lastElementChild as HTMLElement;
-
-  const conn = panel(left, "Discord connection");
-  discordPill = pill("", "Checking…");
-  conn.appendChild(discordPill);
-  conn.appendChild(button("Recheck", () => void refreshDetect()));
-
-  const now = panel(left, "Now detected");
-  mediaPill = pill("", "Checking media…");
-  gamePill = pill("", "Checking games…");
-  now.append(mediaPill, gamePill);
-  nowCard = el("div");
-  now.appendChild(nowCard);
-}
-
-function renderStatus(): void {
-  if (discordPill) {
-    void getDiscordStatus()
-      .then(pipe => {
-        discordPill!.className = "pill ok";
-        discordPill!.lastElementChild!.textContent = `Discord detected (${pipe.replace(/^.*pipe./, "").slice(0, 40)})`;
-      })
-      .catch(() => {
-        discordPill!.className = "pill bad";
-        discordPill!.lastElementChild!.textContent = "Discord not detected — start Discord";
-      });
+async function renderPills(): Promise<void> {
+  pills.innerHTML = "";
+  try {
+    const pipe = await getDiscordStatus();
+    discordPill = pill("ok", `Discord connected (${pipe.replace(/^.*pipe./, "").slice(0, 30)})`);
+  } catch {
+    discordPill = pill("bad", "Discord not running");
   }
-  if (mediaPill) {
-    if (media?.available && media.title) {
-      mediaPill.className = "pill ok";
-      mediaPill.lastElementChild!.textContent = `${media.playing ? "Playing" : "Paused"}: ${media.title}`;
-    } else {
-      mediaPill.className = "pill";
-      mediaPill.lastElementChild!.textContent = "No media session";
-    }
+  if (!cfg.discord.clientId) {
+    pills.appendChild(pill("", "One-time setup needed"));
   }
-  if (gamePill) {
-    if (game?.available) {
-      gamePill.className = "pill ok";
-      gamePill.lastElementChild!.textContent = `Game: ${game.name}`;
-    } else {
-      gamePill.className = "pill";
-      gamePill.lastElementChild!.textContent = "No game detected";
-    }
-  }
-  if (nowCard) {
-    if (media?.available && media.title) {
-      const pct = media.durationMs > 0 ? (media.positionMs / media.durationMs) * 100 : 0;
-      nowCard.innerHTML = `
-        <div class="now-card">
-          <div class="now-art">${media.coverDataUrl ? `<img src="${media.coverDataUrl}"/>` : icons.media}</div>
-          <div class="now-meta">
-            <div class="now-title">${media.title.replace(/</g, "&lt;")}</div>
-            <div class="now-sub">${[media.artist, media.album].filter(Boolean).join(" — ").replace(/</g, "&lt;") || "&nbsp;"}</div>
-            <div class="now-bar"><div class="now-bar-fill" style="width:${pct}%"></div></div>
-            <div class="now-times"><span>${fmt2(media.positionMs)}</span><span>${media.appId.replace(/</g, "&lt;")}</span><span>${fmt2(media.durationMs)}</span></div>
-          </div>
-        </div>`;
-    } else if (game?.available) {
-      nowCard.innerHTML = `
-        <div class="now-card">
-          <div class="now-art">${icons.game}</div>
-          <div class="now-meta">
-            <div class="now-title">${game.name.replace(/</g, "&lt;")}</div>
-            <div class="now-sub">${game.process.replace(/</g, "&lt;")}</div>
-          </div>
-        </div>`;
-    } else {
-      nowCard.innerHTML = `<div class="hint">Nothing detected — the custom fallback from the Content tab is used.</div>`;
-    }
-  }
-}
-
-function fmt2(ms: number): string {
-  const t = Math.floor(ms / 1000);
-  return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
-}
-
-function buildPresence(): void {
-  const p = pane("presence", "Content", "What the status shows when nothing is automatically detected, plus images and buttons.", true);
-  const left = p.firstElementChild as HTMLElement;
-  if (!previewEl) previewEl = p.lastElementChild as HTMLElement;
-
-  const pb = panel(left, "Custom presence (fallback)");
-  pb.appendChild(el("p", "hint", "Shown when no media session and no game are detected. Leave empty to clear the status instead."));
-  pb.appendChild(field("Details (top line)", textInput(cfg.presence.fallbackDetails, v => { cfg.presence.fallbackDetails = v; markDirty(); redraw(); })));
-  pb.appendChild(field("State (second line)", textInput(cfg.presence.fallbackState, v => { cfg.presence.fallbackState = v; markDirty(); redraw(); })));
-  pb.appendChild(toggleRow("Show elapsed time", cfg.presence.showElapsed, v => { cfg.presence.showElapsed = v; markDirty(); redraw(); }));
-
-  const pa = panel(left, "Images");
-  const imgBtn = button("Choose local image…", () => {
-    void (async () => {
-      const { open } = await import("@tauri-apps/plugin-dialog");
-      const picked = await open({
-        multiple: false,
-        filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp"] }]
-      });
-      if (typeof picked !== "string") return;
-      try {
-        const data = await import("./bridge").then(b => b.readImageDataUrl(picked));
-        // The user must upload the same image to their Discord application
-        // assets; we prefill the large image key suggestion.
-        cfg.presence.largeImage = cfg.presence.largeImage || "app-icon";
-        cfg.presence.largeText = cfg.presence.largeText || "";
-        markDirty(); redraw();
-        void data; // preview uses asset keys, not data URLs (Discord-side)
-      } catch (e) {
-        alert(String(e));
-      }
-    })();
-  });
-  pa.appendChild(imgBtn);
-  pa.appendChild(field("Large image key", textInput(cfg.presence.largeImage, v => { cfg.presence.largeImage = v; markDirty(); redraw(); }, "app-icon")));
-  pa.appendChild(field("Large image text", textInput(cfg.presence.largeText, v => { cfg.presence.largeText = v; markDirty(); redraw(); }, "Hover text")));
-  pa.appendChild(field("Small image key", textInput(cfg.presence.smallImage, v => { cfg.presence.smallImage = v; markDirty(); redraw(); }, "optional")));
-  pa.appendChild(el("p", "hint", "Keys refer to images uploaded in your Discord application (Rich Presence > Art Assets)."));
-
-  const pbtn = panel(left, "Button");
-  pbtn.appendChild(toggleRow("Show a button on the status", cfg.presence.buttonEnabled, v => { cfg.presence.buttonEnabled = v; markDirty(); redraw(); }));
-  pbtn.appendChild(field("Label", textInput(cfg.presence.buttonLabel, v => { cfg.presence.buttonLabel = v; markDirty(); redraw(); }, "Open")));
-  pbtn.appendChild(field("URL", textInput(cfg.presence.buttonUrl, v => { cfg.presence.buttonUrl = v; markDirty(); redraw(); }, "https://example.com")));
-}
-
-function buildDetection(): void {
-  const p = pane("detection", "Detection", "What the app watches to build the status automatically.", true);
-  const left = p.firstElementChild as HTMLElement;
-  if (!previewEl) previewEl = p.lastElementChild as HTMLElement;
-
-  const pd = panel(left, "Windows media (SMTC)");
-  pd.appendChild(el("p", "hint", "Spotify, browsers, media players, system playback — anything exposed through Windows media controls. Title, artist, album, cover art and playback position are mirrored, with the track remaining time as the status countdown."));
-  pd.appendChild(toggleRow("Follow media playback", cfg.presence.mediaEnabled, v => { cfg.presence.mediaEnabled = v; markDirty(); redraw(); }));
-
-  const pg = panel(left, "Games & apps");
-  pg.appendChild(el("p", "hint", "Detects a running game by its window title (Minecraft, Roblox, Fortnite, VALORANT and many more). Used when no media session is playing."));
-  pg.appendChild(toggleRow("Detect games", cfg.presence.gameEnabled, v => { cfg.presence.gameEnabled = v; markDirty(); redraw(); }));
-
-  const pr = panel(left, "Refresh");
-  pr.appendChild(rangeRow("Poll interval", 2, 30, 1, cfg.ui.pollIntervalSecs, v => { cfg.ui.pollIntervalSecs = Math.round(v); markDirty(); }, v => `${v} s`));
-  pr.appendChild(button("Probe now", () => void refreshDetect()));
-}
-
-function buildAppearance(): void {
-  const p = pane("appearance", "Appearance", "How this window looks and feels.", false);
-  const left = p.firstElementChild as HTMLElement;
-
-  const pg = panel(left, "Frosted glass");
-  pg.appendChild(rangeRow("Glass strength", 0, 1, 0.05, cfg.ui.glass, v => {
-    cfg.ui.glass = v; markDirty();
-    document.documentElement.style.setProperty("--glass-blur", `${Math.round(10 + v * 24)}px`);
-  }, v => `${Math.round(v * 100)} %`));
-
-  const pp = panel(left, "Particles");
-  pp.appendChild(rangeRow("Particle count", 0, 100, 2, cfg.ui.particles, v => {
-    cfg.ui.particles = Math.round(v); markDirty();
-  }, v => `${v}`));
-  pp.appendChild(el("p", "hint", "Applied after reopening the window (0 disables the canvas)."));
-}
-
-function buildSettings(): void {
-  const p = pane("settings", "Settings", "Connection, startup and data.", false);
-  const left = p.firstElementChild as HTMLElement;
-
-  const pd = panel(left, "Discord Rich Presence");
-  pd.appendChild(el("p", "hint",
-    "1. Create an application on discord.com/developers (New Application). " +
-    "2. Copy the Application ID below. " +
-    "3. Optional: upload an image named app-icon under Rich Presence > Art Assets. " +
-    "4. Keep Discord running."));
-  pd.appendChild(toggleRow("Enable Rich Presence", cfg.discord.enabled, v => { cfg.discord.enabled = v; markDirty(); }));
-  pd.appendChild(field("Application ID (client ID)", textInput(cfg.discord.clientId, v => { cfg.discord.clientId = v.trim(); markDirty(); }, "e.g. 1234567890123456789")));
-  const status = el("div", "hint", "—");
-  pd.appendChild(status);
-  pd.appendChild(button("Check Discord connection", () => {
-    void getDiscordStatus()
-      .then(pipe => { status.textContent = `Discord detected (${pipe})`; })
-      .catch(() => { status.textContent = "Discord not detected — start Discord and retry."; });
-  }));
-
-  const ps = panel(left, "Startup");
-  const autoRow = toggleRow("Launch at Windows startup", false, v => {
-    void (async () => {
-      const { enable, disable } = await import("@tauri-apps/plugin-autostart");
-      if (v) await enable(); else await disable();
-    })();
-  });
-  ps.appendChild(autoRow);
-  void (async () => {
-    const { isEnabled } = await import("@tauri-apps/plugin-autostart");
-    const input = autoRow.querySelector<HTMLInputElement>("input");
-    if (input) input.checked = await isEnabled();
-  })();
-
-  const pa = panel(left, "Data");
-  pa.appendChild(el("p", "hint", "Configuration is stored locally in %APPDATA%\\CustomRichPresence\\config.json. Nothing is sent to any server except the activity data Discord itself displays."));
-  pa.appendChild(button("Open data folder", () => void openDataFolder()));
-
-  const pq = panel(left, "Application");
-  pq.appendChild(button("Quit completely", () => void quitApp(), true));
+  pills.appendChild(discordPill);
 }
 
 /* ---------- Init ---------- */
 
 async function init(): Promise<void> {
-  try { cfg = await getConfig(); } catch { cfg = defaultConfig(); }
-  buildStatus();
-  buildPresence();
-  buildDetection();
-  buildAppearance();
-  buildSettings();
-  navigate("status");
+  try { cfg = { ...defaultConfig(), ...(await getConfig()) }; } catch { /* first run */ }
+  mainInput.value = cfg.presence.fallbackDetails;
+  stateInput.value = cfg.presence.fallbackState;
+  idInput.value = cfg.discord.clientId;
   startParticles(cfg.ui.particles);
-  await refreshDetect();
-  // Light periodic refresh so the status page stays honest.
-  window.setInterval(() => { if (current === "status") void refreshDetect(); }, 5000);
+  await updateSetupStatus();
+  await renderPills();
+  refreshPreview();
+  try {
+    media = await getMediaStatus();
+    game = await getGameStatus();
+  } catch { /* detection is optional */ }
+  refreshPreview();
 }
 
 void init();
