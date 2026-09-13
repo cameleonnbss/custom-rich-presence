@@ -10,6 +10,10 @@ export const getGameStatus = (): Promise<GameStatus> =>
   invoke("get_game_status");
 export const readImageDataUrl = (path: string): Promise<string> =>
   invoke("read_image_data_url", { path });
+export const prepareAsset = (path: string): Promise<string> =>
+  invoke("prepare_asset", { sourcePath: path });
+export const openAssetUploadPage = (): Promise<void> =>
+  invoke("open_asset_upload_page");
 export const openDataFolder = (): Promise<void> => invoke("open_data_folder");
 export const getDiscordStatus = (): Promise<string> =>
   invoke("get_discord_status");

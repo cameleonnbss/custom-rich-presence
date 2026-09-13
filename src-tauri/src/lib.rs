@@ -95,6 +95,8 @@ pub fn run() {
             commands::get_media_status,
             commands::get_game_status,
             commands::read_image_data_url,
+            commands::prepare_asset,
+            commands::open_asset_upload_page,
             commands::open_data_folder,
             commands::get_discord_status,
             commands::quit_app,
