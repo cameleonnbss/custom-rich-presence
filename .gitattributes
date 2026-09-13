@@ -1,0 +1,9 @@
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.icns binary
+*.exe binary
+
+# Generated assets — not real source code
+src-tauri/icons/* linguist-generated
+package-lock.json linguist-generated
