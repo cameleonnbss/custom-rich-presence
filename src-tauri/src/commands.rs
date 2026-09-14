@@ -20,10 +20,21 @@ pub fn save_config(app: AppHandle, state: State<AppState>, config: Config) -> Re
     state.save();
     let cfg = state.config.lock().unwrap().clone();
     let _ = app.emit("card-updated", &cfg);
-    // Instant feedback: push to Discord right away instead of waiting for
-    // the next poll tick (dedup via the worker's change signature).
-    discord_worker::kick(app);
     Ok(())
+}
+
+/// Explicit push (the Push button): send the current config to Discord
+/// right now.
+#[tauri::command]
+pub async fn push_now(app: AppHandle) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            discord_worker::push_now_sync(&app)
+        }))
+        .unwrap_or_else(|_| Err("internal error".into()))
+    })
+    .await
+    .map_err(|e| format!("push failed: {e}"))?
 }
 
 #[tauri::command]

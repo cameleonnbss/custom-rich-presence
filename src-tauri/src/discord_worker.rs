@@ -177,9 +177,9 @@ fn compose(cfg: &Config, payload: &Payload) -> (String, String, Option<u64>, Opt
 /// Discord pipe.
 static PUSH_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-fn push_once(app: &AppHandle) {
+fn push_once(app: &AppHandle) -> Result<String, String> {
     let _guard = PUSH_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-    let Some(state) = app.try_state::<AppState>() else { return };
+    let Some(state) = app.try_state::<AppState>() else { return Ok(String::new()) };
     let snapshot: Config = state.config.lock().unwrap().clone();
     // Auto-enable Discord as soon as there is anything to display.
     let enabled = snapshot.discord.enabled
@@ -220,13 +220,13 @@ fn push_once(app: &AppHandle) {
         }
     };
     if !changed {
-        return;
+        return Ok("unchanged".into());
     }
 
     if !enabled {
         let _ = bounded(Duration::from_secs(5), move || discord::clear_activity(&cid));
         let _ = app.emit("presence-state", "cleared");
-        return;
+        return Ok("cleared".into());
     }
 
     let _ = app.emit("presence-state", "connecting");
@@ -247,26 +247,73 @@ fn push_once(app: &AppHandle) {
     });
     match res {
         Some(Ok(msg)) => {
-            let _ = app2.emit("presence-state", msg);
+            let _ = app2.emit("presence-state", &msg);
+            Ok(msg)
         }
         Some(Err(e)) => {
-            let _ = app2.emit("presence-state", format!("error: {e}"));
+            let m = format!("error: {e}");
+            let _ = app2.emit("presence-state", &m);
+            Err(m)
         }
         None => {
-            let _ = app2.emit("presence-state", "error: Discord did not answer");
+            let m = "error: Discord did not answer".to_string();
+            let _ = app2.emit("presence-state", &m);
+            Err(m)
         }
     }
 }
 
-/// Immediate push, used after each config save so a keystroke reaches
-/// Discord without waiting for the poll tick. Safe to call often: it runs
-/// on its own thread and identical payloads are dropped by the signature.
-pub fn kick(app: tauri::AppHandle) {
-    std::thread::spawn(move || {
-        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            push_once(&app);
-        }));
+/// Synchronous push for the Push button: same path as the worker, but the
+/// caller gets the outcome. Bypasses the change signature (an explicit
+/// push always re-sends).
+pub fn push_now_sync(app: &tauri::AppHandle) -> Result<String, String> {
+    let _guard = PUSH_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let Some(state) = app.try_state::<crate::config::AppState>() else {
+        return Err("app state unavailable".into());
+    };
+    let snapshot: Config = state.config.lock().unwrap().clone();
+    let payload = decide(&snapshot);
+    let (details, state_text, start_ms, end_ms, large_text) = compose(&snapshot, &payload);
+    let cid = effective_client_id(&snapshot.discord.client_id);
+    let large_image = snapshot.presence.large_image.trim().to_string();
+    let small_image = snapshot.presence.small_image.trim().to_string();
+    let (bl, bu) = if snapshot.presence.button_enabled {
+        (snapshot.presence.button_label.clone(), snapshot.presence.button_url.clone())
+    } else {
+        (String::new(), String::new())
+    };
+    let enabled = snapshot.discord.enabled
+        || !details.trim().is_empty()
+        || !state_text.trim().is_empty();
+    if !enabled {
+        let r = bounded(Duration::from_secs(5), move || {
+            discord::clear_activity(&cid).map(|_| "cleared".to_string())
+        });
+        return r.unwrap_or_else(|| Err("Discord did not answer".into()));
+    }
+    let sig = signature(
+        true,
+        &cid,
+        &details,
+        &state_text,
+        start_ms,
+        end_ms,
+        &format!("{bl}|{bu}"),
+    );
+    let res = bounded(Duration::from_secs(8), move || {
+        discord::set_activity(&cid, &details, &state_text, &large_image, &large_text, &small_image, start_ms, end_ms, &bl, &bu)
     });
+    match res {
+        Some(Ok(msg)) => {
+            // Keep the worker's dedup in sync so the next poll is a no-op.
+            if let Ok(mut last) = LAST_SIG.lock() {
+                *last = Some(sig);
+            }
+            Ok(msg)
+        }
+        Some(Err(e)) => Err(format!("error: {e}")),
+        None => Err("Discord did not answer".into()),
+    }
 }
 
 pub fn start(app: tauri::AppHandle) {
@@ -279,7 +326,7 @@ pub fn start(app: tauri::AppHandle) {
             // Catch panics so a WinRT hiccup can never kill the worker.
             let handle = app.clone();
             let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                push_once(&handle);
+                let _ = push_once(&handle);
             }));
             let interval = {
                 let Some(state) = handle.try_state::<AppState>() else {

@@ -92,6 +92,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_config,
             commands::save_config,
+            commands::push_now,
             commands::get_media_status,
             commands::get_game_status,
             commands::read_image_data_url,
