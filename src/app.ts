@@ -116,10 +116,13 @@ async function refreshChip(): Promise<void> {
 const card = panel(flow);
 card.classList.add("main-card");
 
-/* 0 · Connect (required once) */
-const connectPanel = panel(card, "Connect to Discord");
-const connHint = el("p", "hint", "Discord needs to know which name shows above your status. Create it once (30 seconds, no login) and paste its ID here — it's checked live:");
-connectPanel.appendChild(connHint);
+card.appendChild(el("h1", undefined, "Your status on Discord"));
+card.appendChild(el("p", "hint", "Type what you want on your profile — it's already connected. Press Push when ready."));
+
+/* Connect (collapsed: only needed if the built-in ID gets rate-limited) */
+const connect = details(card, "Connection — only if Push says so");
+const connectPanel = panel(connect);
+connectPanel.appendChild(el("p", "hint", "The app ships connected with a built-in public ID. If Push ever fails with “invalid application ID” (Discord rate-limits borrowed IDs), create your own once — 30 seconds, no login — and paste it here. It's checked live:"));
 const steps = el("ol", "steps");
 steps.innerHTML = `
   <li>Open <a href="#" id="dev-portal">discord.com/developers</a> → <b>New Application</b> → name it what should appear on your profile</li>
@@ -165,9 +168,6 @@ idInput.addEventListener("input", () => {
 });
 
 /* 1 · Image */
-card.appendChild(el("h1", undefined, "Your status on Discord"));
-card.appendChild(el("p", "hint", "Image, text, link — then press Push. It appears on your Discord profile."));
-
 const imgRow = el("div", "image-row");
 const imgThumb = el("div", "image-thumb");
 imgThumb.innerHTML = icons.image;
@@ -385,12 +385,8 @@ async function init(): Promise<void> {
   previewTimer = window.setInterval(() => {
     if (needsTicking(cfg)) refreshPreview();
   }, 1000);
-  // First run: guide to the connect card. Otherwise: straight to typing.
-  if (cfg.discord.clientId) {
-    mainInput.focus();
-  } else {
-    idInput.focus();
-  }
+  // Typing is the product: the main box always has focus on open.
+  mainInput.focus();
 }
 
 void init();
