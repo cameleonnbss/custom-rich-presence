@@ -173,7 +173,12 @@ fn compose(cfg: &Config, payload: &Payload) -> (String, String, Option<u64>, Opt
     }
 }
 
+/// Serializes pushes: poll tick and keystroke kicks never overlap on the
+/// Discord pipe.
+static PUSH_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 fn push_once(app: &AppHandle) {
+    let _guard = PUSH_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let Some(state) = app.try_state::<AppState>() else { return };
     let snapshot: Config = state.config.lock().unwrap().clone();
     // Auto-enable Discord as soon as there is anything to display.
@@ -251,6 +256,17 @@ fn push_once(app: &AppHandle) {
             let _ = app2.emit("presence-state", "error: Discord did not answer");
         }
     }
+}
+
+/// Immediate push, used after each config save so a keystroke reaches
+/// Discord without waiting for the poll tick. Safe to call often: it runs
+/// on its own thread and identical payloads are dropped by the signature.
+pub fn kick(app: tauri::AppHandle) {
+    std::thread::spawn(move || {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            push_once(&app);
+        }));
+    });
 }
 
 pub fn start(app: tauri::AppHandle) {

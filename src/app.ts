@@ -390,6 +390,8 @@ async function init(): Promise<void> {
     game = await getGameStatus();
   } catch { /* detection is optional */ }
   refreshPreview();
+  // Ready to type immediately: focus the main box.
+  mainInput.focus();
 }
 
 void init();

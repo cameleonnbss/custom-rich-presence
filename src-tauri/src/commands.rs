@@ -1,6 +1,7 @@
 //! Commands exposed to the frontend.
 
 use crate::config::{AppState, Config};
+use crate::discord_worker;
 use crate::media;
 use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_opener::OpenerExt;
@@ -19,6 +20,9 @@ pub fn save_config(app: AppHandle, state: State<AppState>, config: Config) -> Re
     state.save();
     let cfg = state.config.lock().unwrap().clone();
     let _ = app.emit("card-updated", &cfg);
+    // Instant feedback: push to Discord right away instead of waiting for
+    // the next poll tick (dedup via the worker's change signature).
+    discord_worker::kick(app);
     Ok(())
 }
 
