@@ -276,16 +276,16 @@ function refreshPreview(): void {
 /* -- One-time ID setup (collapsed once done) -- */
 
 /* -- One-time ID setup -- */
-const setup = details(left, "One-time setup — connect Discord (30 seconds)");
+const setup = details(left, "One-time setup — name your status (30 seconds, once)");
 setup.classList.add("setup");
 const setupPanel = panel(setup);
 setupPanel.appendChild(el("p", "hint",
-  "Discord needs an application ID to display a custom status (30 seconds, once, kept forever):"));
+  "The status shows on YOUR profile, exactly like when you play a game. Discord identifies every status by a name — for games it's “Minecraft”, for Spotify it's “Spotify”. Your status needs a name too, and you choose it. This is not a login: no permissions, nothing linked to your account."));
 const steps = el("ol", "steps");
 steps.innerHTML = `
-  <li>Open <a href="#" id="dev-portal">discord.com/developers</a> and click <b>New Application</b></li>
+  <li>Open <a href="#" id="dev-portal">discord.com/developers</a>, click <b>New Application</b> and name it what should appear on your profile (e.g. “My Status”)</li>
   <li>Copy the <b>Application ID</b> shown on the General page</li>
-  <li>Paste it below</li>`;
+  <li>Paste it below — done forever</li>`;
 setupPanel.appendChild(steps);
 const idInput = document.createElement("input");
 idInput.type = "text";
@@ -299,15 +299,8 @@ idInput.addEventListener("input", () => {
   void updateSetupStatus();
 });
 setupPanel.appendChild(idInput);
-const idStatus = el("div", "hint", cfg.discord.clientId ? "Saved. You're connected." : "");
+const idStatus = el("div", "hint", cfg.discord.clientId ? "Saved. You're connected." : "Using the built-in default — no setup needed.");
 setupPanel.appendChild(idStatus);
-idInput.addEventListener("input", () => {
-  cfg.discord.clientId = idInput.value.trim();
-  cfg.discord.enabled = idInput.value.trim().length > 0;
-  markDirty();
-  refreshPreview();
-  void updateSetupStatus();
-});
 setupPanel.appendChild(button("Check Discord is running", () => {
   void getDiscordStatus()
     .then(pipe => { idStatus.textContent = `Discord detected (${pipe}) — you're good.`; })
@@ -319,8 +312,9 @@ async function updateSetupStatus(): Promise<void> {
     setup.open = false;
     hint.textContent = "Your text becomes your Discord status live.";
   } else {
-    setup.open = true;
-    hint.textContent = "Complete the one-time setup below, then type — it shows up on Discord.";
+    // Default ID baked in: it already works without any setup.
+    setup.open = false;
+    hint.textContent = "Working with the default status name. Rename it below — optional.";
   }
 }
 
@@ -372,8 +366,10 @@ async function renderPills(): Promise<void> {
   } catch {
     discordPill = pill("bad", "Discord not running");
   }
-  if (!cfg.discord.clientId) {
-    pills.appendChild(pill("", "One-time setup needed"));
+  if (cfg.discord.clientId) {
+    pills.appendChild(pill("", "Custom status name"));
+  } else {
+    pills.appendChild(pill("", "Default status name — rename anytime"));
   }
   pills.appendChild(discordPill);
 }

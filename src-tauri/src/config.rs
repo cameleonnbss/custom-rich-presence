@@ -173,6 +173,10 @@ mod tests {
         assert_eq!(back.presence.fallback_details, "Hello");
         assert_eq!(back.discord.client_id, "1234567890");
         assert_eq!(back.ui.particles, 7);
+
+        // Empty ID stays empty in config; the worker substitutes its
+        // built-in default at push time.
+        assert_eq!(Config::default().discord.client_id, "");
     }
 
     #[test]

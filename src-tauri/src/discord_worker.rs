@@ -14,6 +14,21 @@ use tauri::{AppHandle, Emitter, Manager};
 
 static DISCORD_RUNNING: AtomicBool = AtomicBool::new(false);
 
+/// Fallback application ID: any Discord user may drive a status under any
+/// public application ID. Baking one in means zero account setup — install,
+/// type, done. The name shown on the profile is then the app's name
+/// ("Custom Rich Presence"), configurable later in the config file.
+const DEFAULT_CLIENT_ID: &str = "1422472431979716669";
+
+fn effective_client_id(configured: &str) -> String {
+    let t = configured.trim();
+    if t.is_empty() {
+        DEFAULT_CLIENT_ID.to_string()
+    } else {
+        t.to_string()
+    }
+}
+
 fn now_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -168,7 +183,7 @@ fn push_once(app: &AppHandle) {
 
     let payload = decide(&snapshot);
     let (details, state_text, start_ms, end_ms, large_text) = compose(&snapshot, &payload);
-    let cid = snapshot.discord.client_id.clone();
+    let cid = effective_client_id(&snapshot.discord.client_id);
     let large_image = snapshot.presence.large_image.trim().to_string();
     let small_image = snapshot.presence.small_image.trim().to_string();
     let button = if snapshot.presence.button_enabled {
@@ -261,4 +276,16 @@ pub fn start(app: tauri::AppHandle) {
             std::thread::sleep(Duration::from_secs(interval));
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_client_id_falls_back_to_builtin_default() {
+        assert_eq!(effective_client_id(""), DEFAULT_CLIENT_ID);
+        assert_eq!(effective_client_id("   "), DEFAULT_CLIENT_ID);
+        assert_eq!(effective_client_id(" 1234567890 "), "1234567890");
+    }
 }
