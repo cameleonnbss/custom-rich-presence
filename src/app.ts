@@ -1,6 +1,6 @@
 import { defaultConfig, type Config } from "./types";
 import { getConfig, saveConfig, pushNow, validateClientId, getDiscordStatus, openDataFolder, quitApp, prepareAsset, openAssetUploadPage, readImageDataUrl } from "./bridge";
-import { renderPreview } from "./preview";
+import { renderPreview, needsTicking } from "./preview";
 import { icons } from "./icons";
 import { startParticles } from "./particles";
 
@@ -8,6 +8,7 @@ let cfg: Config = defaultConfig();
 let dirty = false;
 let saveTimer: number | null = null;
 let clearTimer: number | null = null;
+let previewTimer: number | null = null;
 
 const root = document.getElementById("root")!;
 
@@ -206,6 +207,23 @@ async function pickImage(): Promise<void> {
 }
 
 /* 2 · Text */
+const verbRow = el("div", "link-row");
+const verbSel = document.createElement("select");
+verbSel.innerHTML = `
+  <option value="Playing">Playing</option>
+  <option value="Listening to">Listening to</option>
+  <option value="Watching">Watching</option>
+  <option value="Streaming">Streaming</option>
+  <option value="Competing in">Competing in</option>`;
+verbSel.addEventListener("change", () => {
+  cfg.presence.verb = verbSel.value;
+  markDirty();
+  refreshPreview();
+});
+const verbLabel = el("span", "verb-label", "shown as:");
+verbRow.append(verbLabel, verbSel);
+card.appendChild(verbRow);
+
 const mainInput = document.createElement("textarea");
 mainInput.rows = 2;
 mainInput.placeholder = "What are you doing?";
@@ -326,7 +344,7 @@ const previewEl = el("div");
 previewWrap.appendChild(previewEl);
 
 function refreshPreview(): void {
-  renderPreview(previewEl, cfg, { media: null, game: null });
+  renderPreview(previewEl, cfg);
 }
 
 /* ---------- Optional extras (collapsed) ---------- */
@@ -359,9 +377,14 @@ async function init(): Promise<void> {
   btnUrl.value = cfg.presence.buttonUrl;
   idInput.value = cfg.discord.clientId;
   startParticles(cfg.ui.particles);
+  verbSel.value = cfg.presence.verb;
   refreshPreview();
   await refreshChip();
   window.setInterval(() => void refreshChip(), 10_000);
+  // Live elapsed clock in the preview.
+  previewTimer = window.setInterval(() => {
+    if (needsTicking(cfg)) refreshPreview();
+  }, 1000);
   // First run: guide to the connect card. Otherwise: straight to typing.
   if (cfg.discord.clientId) {
     mainInput.focus();
