@@ -508,3 +508,14 @@ details.setup, details + .panel, .content details {
   border-radius: 12px;
 }
 .btn.push:hover { background: #2bbc65; }
+
+/* ===== Connect card + status text ===== */
+
+.ok-text { color: #7ee2a8 !important; }
+.err-text { color: #f2a0a2 !important; }
+
+.id-input { width: 100%; margin-top: 4px; }
+
+.push-status { margin-top: 6px; min-height: 18px; }
+
+.panel.main-card { display: flex; flex-direction: column; gap: 12px; }

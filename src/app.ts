@@ -1,5 +1,5 @@
 import { defaultConfig, type Config } from "./types";
-import { getConfig, saveConfig, pushNow, getDiscordStatus, openDataFolder, quitApp, prepareAsset, openAssetUploadPage, readImageDataUrl } from "./bridge";
+import { getConfig, saveConfig, pushNow, validateClientId, getDiscordStatus, openDataFolder, quitApp, prepareAsset, openAssetUploadPage, readImageDataUrl } from "./bridge";
 import { renderPreview } from "./preview";
 import { icons } from "./icons";
 import { startParticles } from "./particles";
@@ -113,6 +113,55 @@ async function refreshChip(): Promise<void> {
 /* ---------- Card ---------- */
 
 const card = panel(flow);
+card.classList.add("main-card");
+
+/* 0 · Connect (required once) */
+const connectPanel = panel(card, "Connect to Discord");
+const connHint = el("p", "hint", "Discord needs to know which name shows above your status. Create it once (30 seconds, no login) and paste its ID here — it's checked live:");
+connectPanel.appendChild(connHint);
+const steps = el("ol", "steps");
+steps.innerHTML = `
+  <li>Open <a href="#" id="dev-portal">discord.com/developers</a> → <b>New Application</b> → name it what should appear on your profile</li>
+  <li>Copy the <b>Application ID</b> on the General page</li>
+  <li>Paste below — validated instantly</li>`;
+connectPanel.appendChild(steps);
+const idInput = document.createElement("input");
+idInput.type = "text";
+idInput.placeholder = "Application ID (numbers only)";
+idInput.classList.add("id-input");
+connectPanel.appendChild(idInput);
+const connStatus = el("div", "hint", "");
+connectPanel.appendChild(connStatus);
+let checkSeq = 0;
+idInput.addEventListener("input", () => {
+  const v = idInput.value.trim();
+  cfg.discord.clientId = v;
+  markDirty();
+  connStatus.textContent = "";
+  connStatus.className = "hint";
+  if (!v) return;
+  const seq = ++checkSeq;
+  connStatus.textContent = "Checking with Discord…";
+  window.setTimeout(() => {
+    if (seq !== checkSeq) return;
+    validateClientId(v)
+      .then(msg => {
+        if (seq !== checkSeq) return;
+        connStatus.textContent = "✓ " + msg;
+        connStatus.className = "hint ok-text";
+      })
+      .catch(err => {
+        if (seq !== checkSeq) return;
+        connStatus.textContent = "✗ " + String(err).replace(/^error: /, "");
+        connStatus.className = "hint err-text";
+      });
+  }, 600);
+});
+(root.querySelector("#dev-portal") as HTMLAnchorElement | null)?.addEventListener("click", async (e) => {
+  e.preventDefault();
+  const { openUrl } = await import("@tauri-apps/plugin-opener");
+  void openUrl("https://discord.com/developers/applications");
+});
 
 /* 1 · Image */
 card.appendChild(el("h1", undefined, "Your status on Discord"));
@@ -200,6 +249,7 @@ linkRow.append(btnLabel, btnUrl);
 card.appendChild(linkRow);
 
 /* Push */
+const pushStatus = el("div", "hint push-status", "");
 const actions = el("div", "btn-row push-row");
 const pushBtn = button("Push to Discord", () => void push(), true);
 pushBtn.classList.add("push");
@@ -240,22 +290,30 @@ timerSel.addEventListener("change", () => {
 });
 actions.append(pushBtn, clearBtn, timerSel);
 card.appendChild(actions);
+card.appendChild(pushStatus);
 
 async function push(silent = false): Promise<void> {
   dirty = false;
   if (saveTimer !== null) { window.clearTimeout(saveTimer); saveTimer = null; }
   pushBtn.disabled = true;
+  pushStatus.textContent = "";
   try {
     await saveConfig(structuredClone(cfg));
     await pushNow();
     if (!silent) {
       pushBtn.textContent = "Sent ✓";
+      pushStatus.textContent = "Visible on your Discord profile.";
+      pushStatus.className = "hint push-status ok-text";
       window.setTimeout(() => { pushBtn.textContent = "Push to Discord"; }, 1500);
     }
   } catch (e) {
+    const msg = String(e).replace(/^error: /, "").replace(/^"|"$/g, "");
     pushBtn.textContent = "Failed — retry";
-    window.setTimeout(() => { pushBtn.textContent = "Push to Discord"; }, 2000);
-    if (!silent) alert(String(e));
+    pushStatus.textContent = msg.includes("invalid application ID")
+      ? msg + " — see “Connect to Discord” above."
+      : msg;
+    pushStatus.className = "hint push-status err-text";
+    window.setTimeout(() => { pushBtn.textContent = "Push to Discord"; }, 2500);
   } finally {
     pushBtn.disabled = false;
   }
@@ -272,30 +330,6 @@ function refreshPreview(): void {
 }
 
 /* ---------- Optional extras (collapsed) ---------- */
-
-const setup = details(flow, "Change the name above your status (optional, once)");
-const setupPanel = panel(setup);
-setupPanel.appendChild(el("p", "hint", "The status shows on your profile under the name “Custom Rich Presence”. Want another name? Create it on Discord's site (30 seconds, no login) and paste its ID here:"));
-const steps = el("ol", "steps");
-steps.innerHTML = `
-  <li>Open <a href="#" id="dev-portal">discord.com/developers</a>, click <b>New Application</b>, name it what should show on your profile</li>
-  <li>Copy the <b>Application ID</b> (General page)</li>
-  <li>Paste it below</li>`;
-setupPanel.appendChild(steps);
-const idInput = document.createElement("input");
-idInput.type = "text";
-idInput.placeholder = "Application ID (numbers only, optional)";
-idInput.value = cfg.discord.clientId;
-idInput.addEventListener("input", () => {
-  cfg.discord.clientId = idInput.value.trim();
-  markDirty();
-});
-setupPanel.appendChild(idInput);
-(root.querySelector("#dev-portal") as HTMLAnchorElement | null)?.addEventListener("click", async (e) => {
-  e.preventDefault();
-  const { openUrl } = await import("@tauri-apps/plugin-opener");
-  void openUrl("https://discord.com/developers/applications");
-});
 
 const advanced = details(flow, "Advanced");
 const advPanel = panel(advanced);
@@ -328,7 +362,12 @@ async function init(): Promise<void> {
   refreshPreview();
   await refreshChip();
   window.setInterval(() => void refreshChip(), 10_000);
-  mainInput.focus();
+  // First run: guide to the connect card. Otherwise: straight to typing.
+  if (cfg.discord.clientId) {
+    mainInput.focus();
+  } else {
+    idInput.focus();
+  }
 }
 
 void init();

@@ -103,6 +103,7 @@ pub fn run() {
                 let mut cfg = state.config.lock().unwrap();
                 cfg.started_at = now_ms();
             }
+            discord::start_ipc_actor();
             Ok(())
         })
         .manage(AppState::load())
@@ -110,6 +111,7 @@ pub fn run() {
             commands::get_config,
             commands::save_config,
             commands::push_now,
+            commands::validate_client_id,
             commands::get_media_status,
             commands::get_game_status,
             commands::read_image_data_url,

@@ -25,6 +25,19 @@ pub fn save_config(app: AppHandle, state: State<AppState>, config: Config) -> Re
 
 /// Explicit push (the Push button): send the current config to Discord
 /// right now.
+/// Setup helper: does Discord accept this Application ID right now?
+#[tauri::command]
+pub async fn validate_client_id(id: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            crate::discord::validate_client_id(&id)
+        }))
+        .unwrap_or_else(|_| Err("internal error".into()))
+    })
+    .await
+    .map_err(|e| format!("check failed: {e}"))?
+}
+
 #[tauri::command]
 pub async fn push_now(app: AppHandle) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {

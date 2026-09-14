@@ -18,4 +18,6 @@ export const openDataFolder = (): Promise<void> => invoke("open_data_folder");
 export const getDiscordStatus = (): Promise<string> =>
   invoke("get_discord_status");
 export const pushNow = (): Promise<string> => invoke("push_now");
+export const validateClientId = (id: string): Promise<string> =>
+  invoke("validate_client_id", { id });
 export const quitApp = (): Promise<void> => invoke("quit_app");
