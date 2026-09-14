@@ -14,6 +14,13 @@ use tauri::{
     Emitter, Manager,
 };
 
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(1)
+}
+
 fn build_tray(app: &tauri::App) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Open settings", true, None::<&str>)?;
     let status = MenuItem::with_id(app, "toggle", "Discord: off", true, None::<&str>)?;
@@ -88,6 +95,16 @@ pub fn run() {
         ))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            // Stamp the session start so the elapsed timer is always valid
+            // (Discord rejects timestamps < 1) and counts from app start.
+            {
+                let state = app.state::<AppState>();
+                let mut cfg = state.config.lock().unwrap();
+                cfg.started_at = now_ms();
+            }
+            Ok(())
+        })
         .manage(AppState::load())
         .invoke_handler(tauri::generate_handler![
             commands::get_config,

@@ -161,7 +161,12 @@ fn compose(cfg: &Config, payload: &Payload) -> (String, String, Option<u64>, Opt
             )
         }
         Payload::Custom => {
-            let start = if p.show_elapsed { Some(cfg.started_at) } else { None };
+            // Discord rejects start < 1; guard against a zero stamp.
+            let start = if p.show_elapsed {
+                Some(if cfg.started_at >= 1 { cfg.started_at } else { now_ms() })
+            } else {
+                None
+            };
             (
                 truncated(p.fallback_details.trim(), 128),
                 truncated(p.fallback_state.trim(), 128),
