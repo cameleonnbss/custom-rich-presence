@@ -16,9 +16,10 @@ static DISCORD_RUNNING: AtomicBool = AtomicBool::new(false);
 
 /// Fallback application ID: any Discord user may drive a status under any
 /// public application ID. Baking one in means zero account setup — install,
-/// type, done. The name shown on the profile is then the app's name
-/// ("Custom Rich Presence"), configurable later in the config file.
-const DEFAULT_CLIENT_ID: &str = "1422472431979716669";
+/// type, Push, done. This ID is verified live (handshake + SET_ACTIVITY)
+/// against a real Discord client. The name shown on the profile is the
+/// owner app's name; users can override it in the app settings.
+const DEFAULT_CLIENT_ID: &str = "1379096506065223680";
 
 fn effective_client_id(configured: &str) -> String {
     let t = configured.trim();
